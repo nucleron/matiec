@@ -1,0 +1,30 @@
+syntax: glob
+
+.project
+*~
+*.a
+*.orig
+.dep
+*.Po
+autom4te.cache
+Makefile
+Makefile.in
+config.log
+stamp-h1
+config.status
+configure
+aclocal.m4
+
+
+
+syntax: regexp
+
+\.o$
+^iec2c$
+^iec2iec$
+\.depend$
+^stage1_2/iec_bison.cc
+^stage1_2/iec_bison.h
+^stage1_2/iec_flex.cc
+^config/config.h
+^test/
