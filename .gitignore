@@ -1,11 +1,52 @@
-syntax: glob
+# Desktop enviroment #
+######################
+*.directory
 
-.project
+# IDE files, etc #
+##################
 *~
-*.a
 *.orig
-.dep
+*.dep
+*.depend
 *.Po
+
+# Compiled Object files #
+#########################
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers #
+#######################
+*.gch
+*.pch
+
+# Compiled Dynamic libraries #
+##############################
+*.so
+*.dylib
+*.dll
+
+# Fortran module files #
+########################
+*.mod
+
+# Compiled Static libraries #
+#############################
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables #
+###############
+*.exe
+*.out
+*.app
+
+# Automake, etc #
+#################
 autom4te.cache
 Makefile
 Makefile.in
@@ -15,16 +56,14 @@ config.status
 configure
 aclocal.m4
 
+# Specific files #
+############
 
+iec2c
+iec2iec
 
-syntax: regexp
-
-\.o$
-^iec2c$
-^iec2iec$
-\.depend$
-^stage1_2/iec_bison.cc
-^stage1_2/iec_bison.h
-^stage1_2/iec_flex.cc
-^config/config.h
-^test/
+stage1_2/iec_bison.cc
+stage1_2/iec_bison.h*
+stage1_2/iec_flex.cc
+config/config.h*
+test/**
