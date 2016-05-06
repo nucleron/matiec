@@ -148,6 +148,10 @@ class const_value_c {
     /* comparison operator */
     bool operator==(const const_value_c cv)
       {return ((_int64==cv._int64) && (_uint64==cv._uint64) && (_real64==cv._real64) && (_bool==cv._bool));}                                                     
+      
+    /* return true if at least one of the const values (int, real, ...) is a valid const value */
+    bool is_const(void) 
+      {return (_int64.is_valid() || _uint64.is_valid() || _real64.is_valid() || _bool.is_valid());}   
 };
 
 

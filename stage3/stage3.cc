@@ -41,6 +41,7 @@
 #include "print_datatypes_error.hh"
 #include "lvalue_check.hh"
 #include "array_range_check.hh"
+#include "case_elements_check.hh"
 #include "constant_folding.hh"
 #include "declaration_check.hh"
 #include "enum_declaration_check.hh"
@@ -126,6 +127,15 @@ static int array_range_check(symbol_c *tree_root){
 }
 
 
+/* Case options check assumes that constant folding has been completed!
+ * so be sure to call constant_folding() before calling this function!
+ */
+static int case_elements_check(symbol_c *tree_root){
+	case_elements_check_c case_elements_check(tree_root);
+	tree_root->accept(case_elements_check);
+	return case_elements_check.get_error_count();
+}
+
 
 /* Removing forward dependencies only makes sense when stage1_2 is run with the pre-parsing option.
  * This algorithm has no dependencies on other stage 3 algorithms.
@@ -154,6 +164,7 @@ int stage3(symbol_c *tree_root, symbol_c **ordered_tree_root) {
 	error_count += type_safety(tree_root);
 	error_count += lvalue_check(tree_root);
 	error_count += array_range_check(tree_root);
+	error_count += case_elements_check(tree_root);
 	error_count += remove_forward_dependencies(tree_root, ordered_tree_root);
 	
 	if (error_count > 0) {

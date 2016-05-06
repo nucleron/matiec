@@ -54,12 +54,6 @@ class generate_c_st_c: public generate_c_base_and_typeid_c {
       fparam_output_vg
     } variablegeneration_t;
 
-    typedef enum {
-      single_cg,
-      subrange_cg,
-      none_cg
-    } casegeneration_t;
-
   private:
     /* When calling a function block, we must first find it's type,
      * by searching through the declarations of the variables currently
@@ -89,7 +83,6 @@ class generate_c_st_c: public generate_c_base_and_typeid_c {
     bool first_subrange_case_list;
 
     variablegeneration_t wanted_variablegeneration;
-    casegeneration_t wanted_casegeneration;
 
   public:
     generate_c_st_c(stage4out_c *s4o_ptr, symbol_c *name, symbol_c *scope, const char *variable_prefix = NULL)
@@ -105,7 +98,6 @@ class generate_c_st_c: public generate_c_base_and_typeid_c {
       fcall_number = 0;
       fbname = name;
       wanted_variablegeneration = expression_vg;
-      wanted_casegeneration = none_cg;
     }
 
     virtual ~generate_c_st_c(void) {
@@ -234,17 +226,7 @@ void *print_setter(symbol_c* symbol,
 
 /*  signed_integer DOTDOT signed_integer */
 void *visit(subrange_c *symbol) {
-  switch (wanted_casegeneration) {
-    case subrange_cg:
-      s4o.print("__case_expression >= ");
-      symbol->lower_limit->accept(*this);
-      s4o.print(" && __case_expression <= ");
-      symbol->upper_limit->accept(*this);
-      break;
-    default:
-      symbol->lower_limit->accept(*this);
-      break;
-  }
+  symbol->lower_limit->accept(*this);
   return NULL;
 }
 
@@ -1223,100 +1205,62 @@ void *visit(case_statement_c *symbol) {
     expression_type->accept(*this);
   s4o.print(" __case_expression = ");
   symbol->expression->accept(*this);
-  s4o.print(";\n" + s4o.indent_spaces + "switch (__case_expression) {\n");
-  s4o.indent_right();
-  wanted_casegeneration = single_cg;
-  symbol->case_element_list->accept(*this);
-  wanted_casegeneration = subrange_cg;
-  s4o.print(s4o.indent_spaces + "default:\n");
-  s4o.indent_right();
-  first_subrange_case_list = true;
+  s4o.print(";\n");
   symbol->case_element_list->accept(*this);
   if (symbol->statement_list != NULL) {
-    if (!first_subrange_case_list) {
-      s4o.print(s4o.indent_spaces + "else {\n");
-      s4o.indent_right();
-    }
+    s4o.print(s4o.indent_spaces + "else {\n");
+    s4o.indent_right();
     symbol->statement_list->accept(*this);
-    if (!first_subrange_case_list) {
-      s4o.indent_left();
-      s4o.print(s4o.indent_spaces + "}\n");
-    }
+    s4o.indent_left();
+    s4o.print(s4o.indent_spaces + "}\n");
   }
-  s4o.print(s4o.indent_spaces + "break;\n");
-  s4o.indent_left();
-  wanted_casegeneration = none_cg;
-  s4o.indent_left();
-  s4o.print(s4o.indent_spaces + "}\n");
   s4o.indent_left();
   s4o.print(s4o.indent_spaces + "}");
   return NULL;
 }
 
+
 /* helper symbol for case_statement */
-void *visit(case_element_list_c *symbol) {return print_list(symbol);}
+void *visit(case_element_list_c *symbol) {return print_list(symbol, s4o.indent_spaces+"if ", s4o.indent_spaces+"else if ");}
 
 void *visit(case_element_c *symbol) {
-  case_element_iterator_c *case_element_iterator;
-  symbol_c* element = NULL;
-  bool first_element = true;
+  symbol->case_list->accept(*this);
+  s4o.print(" {\n");
+  s4o.indent_right();
+  symbol->statement_list->accept(*this);
+  s4o.indent_left();
+  s4o.print(s4o.indent_spaces + "}\n");
+  return NULL;
+}
 
-  switch (wanted_casegeneration) {
-    case single_cg:
-      case_element_iterator = new case_element_iterator_c(symbol->case_list, case_element_iterator_c::element_single);
-      for (element = case_element_iterator->next(); element != NULL; element = case_element_iterator->next()) {
-        if (first_element) first_element = false;
-        s4o.print(s4o.indent_spaces + "case ");
-        element->accept(*this);
-        s4o.print(":\n");
-      }
-      delete case_element_iterator;
-      break;
 
-    case subrange_cg:
-      case_element_iterator = new case_element_iterator_c(symbol->case_list, case_element_iterator_c::element_subrange);
-      for (element = case_element_iterator->next(); element != NULL; element = case_element_iterator->next()) {
-        if (first_element) {
-          if (first_subrange_case_list) {
-            s4o.print(s4o.indent_spaces + "if (");
-            first_subrange_case_list = false;
-          }
-          else {
-            s4o.print(s4o.indent_spaces + "else if (");
-          }
-          first_element = false;
-        }
-        else {
-          s4o.print(" && ");
-        }
-        element->accept(*this);
-      }
-      delete case_element_iterator;
-      if (!first_element) {
-        s4o.print(") {\n");
-      }
-      break;
-
-    default:
-      break;
-  }
-
-  if (!first_element) {
-    s4o.indent_right();
-    symbol->statement_list->accept(*this);
-    switch (wanted_casegeneration) {
-      case single_cg:
-        s4o.print(s4o.indent_spaces + "break;\n");
-        s4o.indent_left();
-        break;
-      case subrange_cg:
-        s4o.indent_left();
-        s4o.print(s4o.indent_spaces + "}\n");
-        break;
-      default:
-        break;
+void *visit(case_list_c *symbol) {
+  s4o.print("(");
+  for (int i =  0; i < symbol->n; i++) {
+    /* if not the first element, then add an '||', a '\n', and add some spaces to get nice alignment */
+    /* example of generated C code (codition) for 
+     *   case XX of
+     *     10..20,42,15..99:  <---- C code is for this line!
+     * 
+     *    else if ((__case_expression >= 10 && __case_expression <= 20) ||
+     *             (__case_expression == 42) ||
+     *             (__case_expression >= 15 && __case_expression <= 99)) {
+     */
+    if (0 != i)  s4o.print(" ||\n" + s4o.indent_spaces + "         ");
+    s4o.print("(");
+    subrange_c *subrange = dynamic_cast<subrange_c *>(symbol->elements[i]);
+    if (NULL == subrange) {
+      s4o.print("__case_expression == ");
+      symbol->elements[i]->accept(*this);
+    } else {
+      s4o.print("__case_expression >= ");
+      subrange->lower_limit->accept(*this);
+      s4o.print(" && __case_expression <= ");
+      subrange->upper_limit->accept(*this);
     }
+    s4o.print(")");
   }
+  s4o.print(")");
   return NULL;
 }
 

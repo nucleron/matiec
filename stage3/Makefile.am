@@ -12,6 +12,7 @@ libstage3_a_SOURCES = \
 	datatype_functions.cc \
 	lvalue_check.cc \
 	array_range_check.cc \
+	case_elements_check.cc \
         constant_folding.cc \
         declaration_check.cc \
         enum_declaration_check.cc \

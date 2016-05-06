@@ -909,10 +909,6 @@ class generate_c_vardecl_c: protected generate_c_base_and_typeid_c {
       this->current_var_type_symbol = spec_init_sperator_c::get_spec(symbol);
       this->current_var_init_symbol = spec_init_sperator_c::get_init(symbol);
       if (NULL == this->current_var_type_symbol) ERROR;
-      if (NULL == this->current_var_type_symbol->datatype) {debug_c::print(this->current_var_type_symbol); ERROR;}
-      if (get_datatype_info_c::is_array(this->current_var_type_symbol))
-        this->current_var_type_symbol = this->current_var_type_symbol->datatype; 
-      if (NULL == this->current_var_type_symbol) ERROR;
       if (NULL == this->current_var_init_symbol) {
         /* We try to find the data type's default value... */
         this->current_var_init_symbol = type_initial_value_c::get(this->current_var_type_symbol);
@@ -922,6 +918,15 @@ class generate_c_vardecl_c: protected generate_c_base_and_typeid_c {
         ERROR;
       */
       }
+      /* When handling arrays we must make sure that we use the base datatype, since arrays use an aliased name in the C code!
+       *   This is done using a stage4 annotation (on the base datatype class) named "generate_c_annotaton__implicit_type_id"
+       *   Note that we do this only _after_ determining the initial value, since in principle the derived array could have
+       *   a default initial different to the base array datatype!
+       */
+      if (NULL == this->current_var_type_symbol->datatype) {debug_c::print(this->current_var_type_symbol); ERROR;}
+      if (get_datatype_info_c::is_array(this->current_var_type_symbol))
+        this->current_var_type_symbol = this->current_var_type_symbol->datatype; 
+      if (NULL == this->current_var_type_symbol) ERROR;      
     }
 
     void void_type_init(void) {
@@ -1429,8 +1434,7 @@ void *visit(array_var_init_decl_c *symbol) {
   /* Start off by setting the current_var_type_symbol and
    * current_var_init_symbol private variables...
    */
-  if (NULL == symbol->array_spec_init->datatype) ERROR;
-  update_type_init(symbol->array_spec_init->datatype); // we want to print the name of the base datatype, and nt the derived datatype, so we use '->datatype'!
+  update_type_init(symbol->array_spec_init);
 
   /* now to produce the c equivalent... */
   if (wanted_varformat == constructorinit_vf) {
@@ -1572,8 +1576,7 @@ void *visit(array_var_declaration_c *symbol) {
   /* Start off by setting the current_var_type_symbol and
    * current_var_init_symbol private variables...
    */
-  if (symbol->array_specification->datatype == NULL) {debug_c::print(symbol->array_specification); ERROR;}
-  update_type_init(symbol->array_specification->datatype); // we want to print the name of the base datatype, and nt the derived datatype, so we use '->datatype'!
+  update_type_init(symbol->array_specification);
 
   /* now to produce the c equivalent... */
   if (wanted_varformat == constructorinit_vf) {
@@ -2134,7 +2137,6 @@ void *visit(global_var_list_c *symbol) {
           }
           print_retain();
           s4o.print(")");
-          current_varqualifier = none_vq;
 #if 0
       /* The following code would be for globalinit_vf !!
        * But it is not currently required...
