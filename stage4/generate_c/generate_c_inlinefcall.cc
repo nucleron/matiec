@@ -280,6 +280,15 @@ class generate_c_inlinefcall_c: public generate_c_base_and_typeid_c {
       return NULL;
     }
 
+    /********************/
+    /* 2.1.6 - Pragmas  */
+    /********************/
+    //SYM_REF0(disable_code_generation_pragma_c)
+    //SYM_REF0(enable_code_generation_pragma_c)
+    //SYM_TOKEN(pragma_c)
+    void *visit(pragma_c *symbol) {return NULL;}
+
+
     /*************************/
     /* B.1 - Common elements */
     /*************************/
@@ -764,7 +773,8 @@ class generate_c_inlinefcall_c: public generate_c_base_and_typeid_c {
       symbol_c *parameter_assignment_list = NULL;
       if (NULL != symbol->   formal_param_list) parameter_assignment_list = symbol->   formal_param_list;
       if (NULL != symbol->nonformal_param_list) parameter_assignment_list = symbol->nonformal_param_list;
-      if (NULL == parameter_assignment_list) ERROR;
+      // NOTE-> We support the non-standard feature of POUS with no in, out and inout parameters, so this is no longer an internal error!
+      // if (NULL == parameter_assignment_list) ERROR; 
 
       function_call_param_iterator_c function_call_param_iterator(symbol);
 

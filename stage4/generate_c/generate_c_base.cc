@@ -249,13 +249,48 @@ class generate_c_base_c: public iterator_visitor_c {
       return NULL;
     }
 
+    /* Call a standard library function that does a comparison (GT, NE, EQ, LT, ...)
+     * NOTE: Typically, the function will have the following parameters: 
+     *         1st parameter: EN  (enable)
+     *         2nd parameter: ENO (enable output)
+     *         3rd parameter: number of operands we will be passing (required because we are calling an extensible standard function!)
+     *         4th parameter: the left  hand side of the comparison expression (in out case, the IL implicit variable)
+     *         4th parameter: the right hand side of the comparison expression (in out case, current operand)
+     *       
+     *         The 1st and 2nd parameter may not be present, only issue them if NE and ENO are being generated!
+     *         The 3rd parameter must not be generated when the 'NE' function is called (it is not an extensible function!)
+     * 
+     *  NOTE: To implement this correctly, this function should really instantiate a 
+     *   function_invocation_c and have the generate_c visitor generate the code automatically for this
+     *   function invocation. However, the code for function invocations is currently duplicated 
+     *   for IL and ST. Until this code is not re-formulated into a single piece of general code, for now
+     *   we generate the function call directly here in print_compare_function()
+     */ 
     void *print_compare_function(const char *function,
           symbol_c *compare_type,
           symbol_c *l_exp,
           symbol_c *r_exp) {
-      s4o.print(function);
-      compare_type->accept(*this);
-      s4o.print("(__BOOL_LITERAL(TRUE), NULL, 2, ");
+      // Print out the name of the function we will call.
+      // It will be something like LE_TIME, LE_DATE, GT_DATE, ...
+      //    (in other words, we are calling an overloaded function!)
+      s4o.print(function); // the GT, LE, ... part
+      s4o.print("_");  // the '_' part...
+      compare_type->accept(*this); // the TIME, DATE, ... part.
+      s4o.print("(");  // start of parameters to function call...
+      // Determine whether this function has the EN parameter
+      //    (we just check the base LE, GT, .. function, as it should have
+      //     the same parameters as the overloaded function!)
+      function_symtable_t::iterator lower = function_symtable.lower_bound(function);
+      if (lower == function_symtable.end()) ERROR;  // We want to call a function that does not exist!!?? Hmm...
+      search_var_instance_decl_c search_var(function_symtable.get_value(lower));
+      identifier_c  en_var("EN");
+      identifier_c eno_var("ENO");
+      if (search_var.get_vartype(& en_var) == search_var_instance_decl_c::input_vt)
+        s4o.print("__BOOL_LITERAL(TRUE), "); // function has EN parameter, pass TRUE
+      if (search_var.get_vartype(&eno_var) == search_var_instance_decl_c::output_vt)
+        s4o.print("NULL, "); // function has ENO parameter, pass NULL
+      if (strcmp(function, "NE") != 0) // All comparison library functions are extensible, except for 'NE'!!
+        s4o.print("2, "); // function is extensible, so must first pass the number of parameters that follow
       l_exp->accept(*this);
       s4o.print(", ");
       r_exp->accept(*this);
@@ -622,6 +657,8 @@ void *visit(date_and_time_c *symbol) {
     void *visit(safedword_type_name_c *symbol)   {s4o.print("DWORD");   return NULL;}
     void *visit(safestring_type_name_c *symbol)  {s4o.print("STRING");  return NULL;}
     void *visit(safewstring_type_name_c *symbol) {s4o.print("WSTRING"); return NULL;}
+
+    void *visit(void_type_name_c *symbol)        {s4o.print("void");    return NULL;}
 
 /********************************/
 /* B.1.3.2 - Generic data types */

@@ -162,6 +162,16 @@ static inline void __iec_error(void) {
   /*exit(1);*/
 }
 
+
+/*******************/
+/* Math Operations */
+/*******************/
+
+static inline double __expt(double in1, double in2) {
+  return pow(in1, in2);
+}
+
+
 /*******************************/
 /* Time normalization function */
 /*******************************/
@@ -236,7 +246,7 @@ static inline IEC_TIMESPEC __time_to_timespec(int sign, double mseconds, double 
 
 
 /* NOTE: The following function was turned into a macro, so it could be used to initialize the initial value of TOD (TIME_OF_DAY) variables */
-/* NOTE: many (but not all) of the same comments made regarding __time_to_timespec() are also valid here, so go and read those comments too!
+/* NOTE: many (but not all) of the same comments made regarding __time_to_timespec() are also valid here, so go and read those comments too!*/
 /*
 static inline IEC_TIMESPEC __tod_to_timespec(double seconds, double minutes, double hours) {
   IEC_TIMESPEC ts;
@@ -308,7 +318,7 @@ static inline tm convert_seconds_to_date_and_time(long int seconds) {
 	  days += __isleap(dt.tm_year) ? 366 : 365;
   }
   dt.tm_mon = 1;
-  while (days > __mon_yday[__isleap(dt.tm_year)][dt.tm_mon]) {
+  while (days >= __mon_yday[__isleap(dt.tm_year)][dt.tm_mon]) {
 	  dt.tm_mon += 1;
   }
   dt.tm_day = days - __mon_yday[__isleap(dt.tm_year)][dt.tm_mon - 1] + 1;
@@ -735,8 +745,12 @@ __ANY(__move_)
 
 
 
-
 #include "iec_std_functions.h"
-#include "iec_std_FB.h"
+
+#ifdef  DISABLE_EN_ENO_PARAMETERS
+  #include "iec_std_FB_no_ENENO.h"
+#else
+  #include "iec_std_FB.h"
+#endif
 
 #endif /* _IEC_STD_LIB_H */

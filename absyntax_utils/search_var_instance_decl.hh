@@ -171,6 +171,8 @@ class search_var_instance_decl_c: public search_visitor_c {
     void *visit(input_output_declarations_c *symbol);
     /* ENO : BOOL */
     void *visit(eno_param_declaration_c *symbol);
+    /* EN : BOOL */
+    void *visit(en_param_declaration_c *symbol);
     /* VAR [CONSTANT] var_init_decl_list END_VAR */
     /* option -> may be NULL ! */
     /* helper symbol for input_declarations */

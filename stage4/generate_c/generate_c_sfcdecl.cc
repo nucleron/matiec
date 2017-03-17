@@ -130,7 +130,7 @@ class generate_c_sfcdecl_c: protected generate_c_base_and_typeid_c {
           wanted_sfcdeclaration = sfcinit_sd;
           
           /* steps table initialisation */
-          s4o.print(s4o.indent_spaces + "static const STEP temp_step = {{0, 0}, 0, {0, 0}};\n");
+          s4o.print(s4o.indent_spaces + "static const STEP temp_step = {{0, 0}, 0, {{0, 0}, 0}};\n");
           s4o.print(s4o.indent_spaces + "for(i = 0; i < ");
           print_variable_prefix();
           s4o.print("__nb_steps; i++) {\n");

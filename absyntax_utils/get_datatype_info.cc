@@ -127,6 +127,8 @@ class get_datatype_id_c: null_visitor_c {
     void *visit(safestring_type_name_c  *symbol) {return (void *)symbol;};
     void *visit(safewstring_type_name_c *symbol) {return (void *)symbol;};
 
+    void *visit(void_type_name_c        *symbol) {return (void *)symbol;};
+
     /********************************/
     /* B 1.3.3 - Derived data types */
     /********************************/
@@ -259,6 +261,8 @@ class get_datatype_id_str_c: public null_visitor_c {
     void *visit(safedword_type_name_c   *symbol) {return (void *)"SAFEDWORD";   };
     void *visit(safestring_type_name_c  *symbol) {return (void *)"SAFESTRING";  };
     void *visit(safewstring_type_name_c *symbol) {return (void *)"SAFEWSTRING"; };
+
+    void *visit(void_type_name_c        *symbol) {return (void *)"VOID"; };
 
     /********************************/
     /* B.1.3.2 - Generic data types */
@@ -1345,6 +1349,21 @@ bool get_datatype_info_c::is_ANY_STRING_compatible(symbol_c *type_symbol) {
   if (is_ANY_SAFESTRING(type_symbol))                          {return true;}
   return false;
 }
+
+
+
+
+
+
+
+
+bool get_datatype_info_c::is_VOID(symbol_c *type_symbol) {
+  if (type_symbol == NULL)                                     {return false;}
+  if (typeid(*type_symbol) == typeid(void_type_name_c))        {return true;}
+  return false;
+}
+
+
 
 
 

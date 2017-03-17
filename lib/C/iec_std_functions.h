@@ -82,28 +82,40 @@
 /********************/
 /*   EN/ENO PARAMS  */
 /********************/
+#ifdef DISABLE_EN_ENO_PARAMETERS
 
-#define EN_ENO_PARAMS BOOL EN, BOOL *ENO
-#define EN_ENO EN, ENO
+  /* Do _not_ generate the EN and ENO parameters! */
+  #define EN_ENO_PARAMS
+  #define EN_ENO
 
-#define TEST_EN(TYPENAME)\
-  if (!EN) {\
-    if (ENO != NULL)\
-      *ENO = __BOOL_LITERAL(FALSE);\
-    return __INIT_##TYPENAME;\
-  }\
-  else if (ENO != NULL)\
-    *ENO = __BOOL_LITERAL(TRUE);
+  #define TEST_EN(TYPENAME)
+  #define TEST_EN_COND(TYPENAME, COND)
 
-#define TEST_EN_COND(TYPENAME, COND)\
-  if (!EN || (COND)) {\
-    if (ENO != NULL)\
-      *ENO = __BOOL_LITERAL(FALSE);\
-    return __INIT_##TYPENAME;\
-  }\
-  else if (ENO != NULL)\
-    *ENO = __BOOL_LITERAL(TRUE);
+#else
+    
+  /* _Do_ generate the EN and ENO parameters! */
+  #define EN_ENO_PARAMS BOOL EN, BOOL *ENO,
+  #define EN_ENO EN, ENO,
 
+  #define TEST_EN(TYPENAME)\
+    if (!EN) {\
+      if (ENO != NULL)\
+        *ENO = __BOOL_LITERAL(FALSE);\
+      return __INIT_##TYPENAME;\
+    }\
+    else if (ENO != NULL)\
+      *ENO = __BOOL_LITERAL(TRUE);
+
+  #define TEST_EN_COND(TYPENAME, COND)\
+    if (!EN || (COND)) {\
+      if (ENO != NULL)\
+        *ENO = __BOOL_LITERAL(FALSE);\
+      return __INIT_##TYPENAME;\
+    }\
+    else if (ENO != NULL)\
+      *ENO = __BOOL_LITERAL(TRUE);
+    
+#endif
   
   
 /*****************************************/  
@@ -113,14 +125,14 @@
 /*****************************************/  
 
 #define __convert_type(from_TYPENAME,to_TYPENAME, oper) \
-static inline to_TYPENAME from_TYPENAME##_TO_##to_TYPENAME(EN_ENO_PARAMS, from_TYPENAME op){\
+static inline to_TYPENAME from_TYPENAME##_TO_##to_TYPENAME(EN_ENO_PARAMS from_TYPENAME op){\
   TEST_EN(to_TYPENAME)\
   return (to_TYPENAME)oper(op);\
 }
 
 /******** [ANY_NUM | ANY_NBIT]_TO_BOOL   ************/
 #define __convert_num_to_bool(TYPENAME) \
-static inline BOOL TYPENAME##_TO_BOOL(EN_ENO_PARAMS, TYPENAME op){\
+static inline BOOL TYPENAME##_TO_BOOL(EN_ENO_PARAMS TYPENAME op){\
   TEST_EN(BOOL)\
   return op == 0 ? 0 : 1;\
 }
@@ -129,7 +141,7 @@ __ANY_NBIT(__convert_num_to_bool)
 
 /******** [TIME | ANY_DATE]_TO_BOOL   ************/
 #define __convert_time_to_bool(TYPENAME) \
-static inline BOOL TYPENAME##_TO_BOOL(EN_ENO_PARAMS, TYPENAME op){\
+static inline BOOL TYPENAME##_TO_BOOL(EN_ENO_PARAMS TYPENAME op){\
   TEST_EN(BOOL)\
   return op.tv_sec == 0 && op.tv_nsec == 0 ? 0 : 1;\
 }
@@ -211,13 +223,13 @@ __ANY_DATE(__to_anyreal_)
 /******** [ANY_DATE]_TO_[ANY_DATE | TIME]   ************/ 
 /* Not supported: DT_TO_TIME */
 __convert_type(DT, DATE,  __date_and_time_to_date)
-static inline DATE DATE_AND_TIME_TO_DATE(EN_ENO_PARAMS, DT op){
-	return DT_TO_DATE(EN_ENO, op);
+static inline DATE DATE_AND_TIME_TO_DATE(EN_ENO_PARAMS DT op){
+	return DT_TO_DATE(EN_ENO op);
 }
 __convert_type(DT, DT,    __move_DT)
 __convert_type(DT, TOD,   __date_and_time_to_time_of_day)
-static inline DATE DATE_AND_TIME_TO_TIME_OF_DAY(EN_ENO_PARAMS, DT op){
-	return DT_TO_TOD(EN_ENO, op);
+static inline DATE DATE_AND_TIME_TO_TIME_OF_DAY(EN_ENO_PARAMS DT op){
+	return DT_TO_TOD(EN_ENO op);
 }
 /* Not supported: DATE_TO_TIME */
 __convert_type(DATE, DATE, __move_DATE)
@@ -296,7 +308,7 @@ __convert_type(STRING, TIME, __string_to_time)
 
 /********   TRUNC   ************/ 
 #define __iec_(to_TYPENAME,from_TYPENAME) \
-static inline to_TYPENAME TRUNC__##to_TYPENAME##__##from_TYPENAME(EN_ENO_PARAMS, from_TYPENAME op){\
+static inline to_TYPENAME TRUNC__##to_TYPENAME##__##from_TYPENAME(EN_ENO_PARAMS from_TYPENAME op){\
   TEST_EN(to_TYPENAME)\
   return (to_TYPENAME)__move_##to_TYPENAME(op);\
 }
@@ -306,12 +318,12 @@ __ANY_REAL(__to_anyint_)
 
 /********   _TO_BCD   ************/
 #define __iec_(to_TYPENAME,from_TYPENAME) \
-static inline to_TYPENAME from_TYPENAME##_TO_BCD_##to_TYPENAME(EN_ENO_PARAMS, from_TYPENAME op){\
+static inline to_TYPENAME from_TYPENAME##_TO_BCD_##to_TYPENAME(EN_ENO_PARAMS from_TYPENAME op){\
   TEST_EN(to_TYPENAME)\
   return (to_TYPENAME)__uint_to_bcd(op);\
 }\
-static inline to_TYPENAME from_TYPENAME##_TO_BCD__##to_TYPENAME##__##from_TYPENAME(EN_ENO_PARAMS, from_TYPENAME op){\
-  return from_TYPENAME##_TO_BCD_##to_TYPENAME(EN_ENO, op);\
+static inline to_TYPENAME from_TYPENAME##_TO_BCD__##to_TYPENAME##__##from_TYPENAME(EN_ENO_PARAMS from_TYPENAME op){\
+  return from_TYPENAME##_TO_BCD_##to_TYPENAME(EN_ENO op);\
 }
 __ANY_UINT(__to_anynbit_)
 #undef __iec_
@@ -319,12 +331,12 @@ __ANY_UINT(__to_anynbit_)
 
 /********   BCD_TO_   ************/
 #define __iec_(to_TYPENAME,from_TYPENAME) \
-static inline to_TYPENAME from_TYPENAME##_BCD_TO_##to_TYPENAME(EN_ENO_PARAMS, from_TYPENAME op){\
+static inline to_TYPENAME from_TYPENAME##_BCD_TO_##to_TYPENAME(EN_ENO_PARAMS from_TYPENAME op){\
   TEST_EN_COND(to_TYPENAME, __test_bcd(op))\
   return (to_TYPENAME)__bcd_to_uint(op);\
 }\
-static inline to_TYPENAME BCD_TO_##to_TYPENAME##__##to_TYPENAME##__##from_TYPENAME(EN_ENO_PARAMS, from_TYPENAME op){\
-  return from_TYPENAME##_BCD_TO_##to_TYPENAME(EN_ENO, op);\
+static inline to_TYPENAME BCD_TO_##to_TYPENAME##__##to_TYPENAME##__##from_TYPENAME(EN_ENO_PARAMS from_TYPENAME op){\
+  return from_TYPENAME##_BCD_TO_##to_TYPENAME(EN_ENO op);\
 }
 __ANY_NBIT(__to_anyuint_)
 #undef __iec_
@@ -362,13 +374,13 @@ __ANY_NBIT(__to_anyuint_)
 
 #define __numeric(fname,TYPENAME, FUNC) \
 /* explicitly typed function */\
-static inline TYPENAME fname##TYPENAME(EN_ENO_PARAMS, TYPENAME op){\
+static inline TYPENAME fname##TYPENAME(EN_ENO_PARAMS TYPENAME op){\
   TEST_EN(TYPENAME)\
   return FUNC(op);\
 }\
 /* overloaded function */\
-static inline TYPENAME fname##_##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME op) {\
-  return fname##TYPENAME(EN_ENO, op);\
+static inline TYPENAME fname##_##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME op) {\
+  return fname##TYPENAME(EN_ENO op);\
 }
 
 /******************************************************************/
@@ -380,26 +392,26 @@ static inline TYPENAME fname##_##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME 
   /**************/
 #define __abs_signed(TYPENAME) \
 /* explicitly typed function */\
-static inline TYPENAME ABS_##TYPENAME(EN_ENO_PARAMS, TYPENAME op){\
+static inline TYPENAME ABS_##TYPENAME(EN_ENO_PARAMS TYPENAME op){\
   TEST_EN(TYPENAME)\
   if (op < 0)\
     return -op;\
   return op;\
 }\
 /* overloaded function */\
-static inline TYPENAME ABS__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME op) {\
-  return ABS_##TYPENAME(EN_ENO, op);\
+static inline TYPENAME ABS__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME op) {\
+  return ABS_##TYPENAME(EN_ENO op);\
 }
 
 #define __abs_unsigned(TYPENAME) \
 /* explicitly typed function */\
-static inline TYPENAME ABS_##TYPENAME(EN_ENO_PARAMS, TYPENAME op){\
+static inline TYPENAME ABS_##TYPENAME(EN_ENO_PARAMS TYPENAME op){\
   TEST_EN(TYPENAME)\
   return op;\
 }\
 /* overloaded function */\
-static inline TYPENAME ABS__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME op) {\
-  return ABS_##TYPENAME(EN_ENO, op);\
+static inline TYPENAME ABS__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME op) {\
+  return ABS_##TYPENAME(EN_ENO op);\
 }
 
 __ANY_REAL(__abs_signed)
@@ -480,7 +492,7 @@ __ANY_REAL(__atan)
 /*****************************************************/
 
 #define __arith_expand(fname,TYPENAME, OP)\
-static inline TYPENAME fname(EN_ENO_PARAMS, UINT param_count, TYPENAME op1, ...){\
+static inline TYPENAME fname(EN_ENO_PARAMS UINT param_count, TYPENAME op1, ...){\
   va_list ap;\
   UINT i;\
   TEST_EN(TYPENAME)\
@@ -497,13 +509,13 @@ static inline TYPENAME fname(EN_ENO_PARAMS, UINT param_count, TYPENAME op1, ...)
 
 #define __arith_static(fname,TYPENAME, OP)\
 /* explicitly typed function */\
-static inline TYPENAME fname##TYPENAME(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
+static inline TYPENAME fname##TYPENAME(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
   TEST_EN(TYPENAME)\
   return op1 OP op2;\
 }\
 /* overloaded function */\
-static inline TYPENAME fname##_##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
-  return fname##TYPENAME(EN_ENO, op1, op2);\
+static inline TYPENAME fname##_##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
+  return fname##TYPENAME(EN_ENO op1, op2);\
 }
 
   /**************/
@@ -536,13 +548,13 @@ __ANY_NUM(__sub)
   /**************/
 #define __div(TYPENAME)\
 /* The explicitly typed standard functions */\
-static inline TYPENAME DIV_##TYPENAME(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
+static inline TYPENAME DIV_##TYPENAME(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
   TEST_EN_COND(TYPENAME, op2 == 0)\
   return op1 / op2;\
 }\
 /* The overloaded standard functions */\
-static inline TYPENAME DIV__##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
-  return DIV_##TYPENAME(EN_ENO, op1, op2);\
+static inline TYPENAME DIV__##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
+  return DIV_##TYPENAME(EN_ENO op1, op2);\
 }
 __ANY_NUM(__div)
 
@@ -552,14 +564,14 @@ __ANY_NUM(__div)
   /**************/
 #define __mod(TYPENAME)\
 /* The explicitly typed standard functions */\
-static inline TYPENAME MOD_##TYPENAME(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
+static inline TYPENAME MOD_##TYPENAME(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
   TEST_EN(TYPENAME)\
   if (op2 == 0) return 0;\
   return op1 % op2;\
 }\
 /* The overloaded standard functions */\
-static inline TYPENAME MOD__##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
-  return MOD_##TYPENAME(EN_ENO, op1, op2);\
+static inline TYPENAME MOD__##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
+  return MOD_##TYPENAME(EN_ENO op1, op2);\
 }
 __ANY_INT(__mod)
 
@@ -569,9 +581,9 @@ __ANY_INT(__mod)
 /* overloaded function */
 #define __iec_(in1_TYPENAME,in2_TYPENAME) \
 static inline in1_TYPENAME EXPT__##in1_TYPENAME##__##in1_TYPENAME##__##in2_TYPENAME\
-  (EN_ENO_PARAMS, in1_TYPENAME IN1, in2_TYPENAME IN2){\
+  (EN_ENO_PARAMS in1_TYPENAME IN1, in2_TYPENAME IN2){\
   TEST_EN(in1_TYPENAME)\
-  return pow(IN1, IN2);\
+  return __expt(IN1, IN2);\
 }
 #define __in1_anyreal_(in2_TYPENAME)   __ANY_REAL_1(__iec_,in2_TYPENAME)
 __ANY_NUM(__in1_anyreal_)
@@ -584,7 +596,7 @@ __ANY_NUM(__in1_anyreal_)
   /***************/
 /* The explicitly typed standard functions */
 #define __iec_(TYPENAME)\
-static inline TYPENAME MOVE_##TYPENAME(EN_ENO_PARAMS, TYPENAME op1){\
+static inline TYPENAME MOVE_##TYPENAME(EN_ENO_PARAMS TYPENAME op1){\
   TEST_EN(TYPENAME)\
   return op1;\
 }
@@ -593,7 +605,7 @@ __ANY(__iec_)
 
 /* Overloaded function */
 #define __iec_(TYPENAME)\
-static inline TYPENAME MOVE__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME op1){\
+static inline TYPENAME MOVE__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME op1){\
   TEST_EN(TYPENAME)\
   return op1;\
 }
@@ -621,7 +633,7 @@ __ANY(__iec_)
 #define __in1_anynbit_(in2_TYPENAME)   __ANY_NBIT_1(__iec_,in2_TYPENAME)
 
 #define __shift_(fname, in1_TYPENAME, in2_TYPENAME, OP)\
-static inline in1_TYPENAME fname(EN_ENO_PARAMS, in1_TYPENAME IN, in2_TYPENAME N) {\
+static inline in1_TYPENAME fname(EN_ENO_PARAMS in1_TYPENAME IN, in2_TYPENAME N) {\
   TEST_EN(in1_TYPENAME)\
   return IN OP N;\
 }
@@ -631,7 +643,7 @@ static inline in1_TYPENAME fname(EN_ENO_PARAMS, in1_TYPENAME IN, in2_TYPENAME N)
   /**************/
 #define __iec_(TYPENAME) \
 /* Overloaded function */\
-static inline BOOL SHL__BOOL__##TYPENAME(EN_ENO_PARAMS, BOOL IN, TYPENAME N) { \
+static inline BOOL SHL__BOOL__##TYPENAME(EN_ENO_PARAMS BOOL IN, TYPENAME N) { \
   TEST_EN(BOOL);\
   return (N==0)? IN : __INIT_BOOL;  /* shifting by N>1 will always introduce a 0 */\
 }
@@ -650,7 +662,7 @@ __ANY_INT(__in1_anynbit_)
   /**************/
 #define __iec_(TYPENAME) \
 /* Overloaded function */\
-static inline BOOL SHR__BOOL__##TYPENAME(EN_ENO_PARAMS, BOOL IN, TYPENAME N) { \
+static inline BOOL SHR__BOOL__##TYPENAME(EN_ENO_PARAMS BOOL IN, TYPENAME N) { \
   TEST_EN(BOOL);\
   return (N==0)? IN : __INIT_BOOL;  /* shifting by N>1 will always introduce a 0 */\
 }
@@ -669,7 +681,7 @@ __ANY_INT(__in1_anynbit_)
   /**************/
 #define __iec_(TYPENAME) \
 /* Overloaded function */\
-static inline BOOL ROR__BOOL__##TYPENAME(EN_ENO_PARAMS, BOOL IN, TYPENAME N) { \
+static inline BOOL ROR__BOOL__##TYPENAME(EN_ENO_PARAMS BOOL IN, TYPENAME N) { \
   TEST_EN(BOOL);\
   return IN; /* rotating a single bit by any value N will not change that bit! */\
 }
@@ -678,7 +690,7 @@ __ANY_INT(__iec_)
 
 
 #define __iec_(in1_TYPENAME,in2_TYPENAME) \
-static inline in1_TYPENAME ROR__##in1_TYPENAME##__##in1_TYPENAME##__##in2_TYPENAME(EN_ENO_PARAMS, in1_TYPENAME IN, in2_TYPENAME N){\
+static inline in1_TYPENAME ROR__##in1_TYPENAME##__##in1_TYPENAME##__##in2_TYPENAME(EN_ENO_PARAMS in1_TYPENAME IN, in2_TYPENAME N){\
   TEST_EN(in1_TYPENAME)\
   N %= 8*sizeof(in1_TYPENAME);\
   return (IN >> N) | (IN << (8*sizeof(in1_TYPENAME)-N));\
@@ -692,7 +704,7 @@ __ANY_INT(__in1_anynbit_)
   /**************/
 #define __iec_(TYPENAME) \
 /* Overloaded function */\
-static inline BOOL ROL__BOOL__##TYPENAME(EN_ENO_PARAMS, BOOL IN, TYPENAME N) { \
+static inline BOOL ROL__BOOL__##TYPENAME(EN_ENO_PARAMS BOOL IN, TYPENAME N) { \
   TEST_EN(BOOL);\
   return IN; /* rotating a single bit by any value N will not change that bit! */\
 }
@@ -701,7 +713,7 @@ __ANY_INT(__iec_)
 
 
 #define __iec_(in1_TYPENAME,in2_TYPENAME) \
-static inline in1_TYPENAME ROL__##in1_TYPENAME##__##in1_TYPENAME##__##in2_TYPENAME(EN_ENO_PARAMS, in1_TYPENAME IN, in2_TYPENAME N){\
+static inline in1_TYPENAME ROL__##in1_TYPENAME##__##in1_TYPENAME##__##in2_TYPENAME(EN_ENO_PARAMS in1_TYPENAME IN, in2_TYPENAME N){\
   TEST_EN(in1_TYPENAME)\
   N %= 8*sizeof(in1_TYPENAME);\
   return (IN << N) | (IN >> (8*sizeof(in1_TYPENAME)-N));\
@@ -743,7 +755,7 @@ __ANY_NBIT(__iec_)
   /*     XOR    */
   /**************/
 #define __xorbool_expand(fname) \
-static inline BOOL fname(EN_ENO_PARAMS, UINT param_count, BOOL op1, ...){ \
+static inline BOOL fname(EN_ENO_PARAMS UINT param_count, BOOL op1, ...){ \
   va_list ap; \
   UINT i; \
   TEST_EN(BOOL) \
@@ -773,20 +785,20 @@ __ANY_NBIT(__iec_)
   /*     NOT    */
   /**************/
 /* The explicitly typed standard functions */
-static inline BOOL NOT_BOOL(EN_ENO_PARAMS, BOOL op1){
+static inline BOOL NOT_BOOL(EN_ENO_PARAMS BOOL op1){
   TEST_EN(BOOL)
   return !op1;
 }
 
 /* Overloaded function */
-static inline BOOL NOT__BOOL__BOOL(EN_ENO_PARAMS, BOOL op1){
+static inline BOOL NOT__BOOL__BOOL(EN_ENO_PARAMS BOOL op1){
   TEST_EN(BOOL)
   return !op1;
 }
 
 /* The explicitly typed standard functions */
 #define __iec_(TYPENAME)\
-static inline TYPENAME NOT_##TYPENAME(EN_ENO_PARAMS, TYPENAME op1){\
+static inline TYPENAME NOT_##TYPENAME(EN_ENO_PARAMS TYPENAME op1){\
   TEST_EN(TYPENAME)\
   return ~op1;\
 }
@@ -795,7 +807,7 @@ __ANY_NBIT(__iec_)
 
 /* Overloaded function */
 #define __iec_(TYPENAME)\
-static inline TYPENAME NOT__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME op1){\
+static inline TYPENAME NOT__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME op1){\
   TEST_EN(TYPENAME)\
   return ~op1;\
 }
@@ -824,7 +836,7 @@ __ANY_NBIT(__iec_)
 
 /* The explicitly typed standard functions */
 #define __iec_(TYPENAME)\
-static inline TYPENAME SEL_##TYPENAME(EN_ENO_PARAMS, BOOL G, TYPENAME op0, TYPENAME op1){\
+static inline TYPENAME SEL_##TYPENAME(EN_ENO_PARAMS BOOL G, TYPENAME op0, TYPENAME op1){\
   TEST_EN(TYPENAME)\
   return G ? op1 : op0;\
 }
@@ -833,7 +845,7 @@ __ANY(__iec_)
 
 /* Overloaded function */
 #define __iec_(TYPENAME)\
-static inline TYPENAME SEL__##TYPENAME##__BOOL__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, BOOL G, TYPENAME op0, TYPENAME op1){\
+static inline TYPENAME SEL__##TYPENAME##__BOOL__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS BOOL G, TYPENAME op0, TYPENAME op1){\
   TEST_EN(TYPENAME)\
   return G ? op1 : op0;\
 }
@@ -846,7 +858,7 @@ __ANY(__iec_)
     /**************/
 
 #define __extrem_(fname,TYPENAME, COND) \
-static inline TYPENAME fname(EN_ENO_PARAMS, UINT param_count, TYPENAME op1, ...){\
+static inline TYPENAME fname(EN_ENO_PARAMS UINT param_count, TYPENAME op1, ...){\
   va_list ap;\
   UINT i;\
   TEST_EN(TYPENAME)\
@@ -914,12 +926,12 @@ __extrem_(MIN__STRING__STRING, STRING, __STR_CMP(op1,tmp) > 0) /* Overloaded fun
 /* Limit for numerical data types */
 #define __iec_(TYPENAME)\
 /* The explicitly typed standard functions */\
-static inline TYPENAME LIMIT_##TYPENAME(EN_ENO_PARAMS, TYPENAME MN, TYPENAME IN, TYPENAME MX){\
+static inline TYPENAME LIMIT_##TYPENAME(EN_ENO_PARAMS TYPENAME MN, TYPENAME IN, TYPENAME MX){\
   TEST_EN(TYPENAME)\
   return IN > MN ? IN < MX ? IN : MX : MN;\
 }\
 /* Overloaded function */\
-static inline TYPENAME LIMIT__##TYPENAME##__##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME MN, TYPENAME IN, TYPENAME MX){\
+static inline TYPENAME LIMIT__##TYPENAME##__##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME MN, TYPENAME IN, TYPENAME MX){\
   TEST_EN(TYPENAME)\
   return IN > MN ? IN < MX ? IN : MX : MN;\
 }
@@ -931,14 +943,14 @@ __ANY_NUM(__iec_)
 /* Limit for time data types */	
 #define __iec_(TYPENAME)\
 /* The explicitly typed standard functions */\
-static inline TYPENAME LIMIT_##TYPENAME(EN_ENO_PARAMS, TYPENAME MN, TYPENAME IN, TYPENAME MX){\
+static inline TYPENAME LIMIT_##TYPENAME(EN_ENO_PARAMS TYPENAME MN, TYPENAME IN, TYPENAME MX){\
     TEST_EN(TYPENAME)\
     return __time_cmp(IN, MN) > 0 ? /* IN>MN ?*/\
            __time_cmp(IN, MX) < 0 ? /* IN<MX ?*/\
            IN : MX : MN;\
 }\
 /* Overloaded function */\
-static inline TYPENAME LIMIT__##TYPENAME##__##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, TYPENAME MN, TYPENAME IN, TYPENAME MX){\
+static inline TYPENAME LIMIT__##TYPENAME##__##TYPENAME##__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS TYPENAME MN, TYPENAME IN, TYPENAME MX){\
     TEST_EN(TYPENAME)\
     return __time_cmp(IN, MN) > 0 ? /* IN>MN ?*/\
            __time_cmp(IN, MX) < 0 ? /* IN<MX ?*/\
@@ -951,13 +963,13 @@ __iec_(TIME)
 
 /* Limit for string data types */	
 /* The explicitly typed standard functions */
-static inline STRING LIMIT_STRING(EN_ENO_PARAMS, STRING MN, STRING IN, STRING MX){
+static inline STRING LIMIT_STRING(EN_ENO_PARAMS STRING MN, STRING IN, STRING MX){
     TEST_EN(STRING)
     return __STR_CMP(IN, MN) > 0 ? __STR_CMP(IN, MX) < 0 ? IN : MX : MN;
 }
 
 /* Overloaded function */
-static inline STRING LIMIT__STRING__STRING__STRING__STRING(EN_ENO_PARAMS, STRING MN, STRING IN, STRING MX){
+static inline STRING LIMIT__STRING__STRING__STRING__STRING(EN_ENO_PARAMS STRING MN, STRING IN, STRING MX){
     TEST_EN(STRING)
     return __STR_CMP(IN, MN) > 0 ? __STR_CMP(IN, MX) < 0 ? IN : MX : MN;
 }
@@ -972,7 +984,7 @@ static inline STRING LIMIT__STRING__STRING__STRING__STRING(EN_ENO_PARAMS, STRING
 /* The explicitly typed standard functions */
 #define __in1_anyint_(in2_TYPENAME)   __ANY_INT_1(__iec_,in2_TYPENAME)
 #define __iec_(in1_TYPENAME,in2_TYPENAME) \
-static inline in2_TYPENAME MUX__##in2_TYPENAME##__##in1_TYPENAME##__##in2_TYPENAME(EN_ENO_PARAMS, in1_TYPENAME K, UINT param_count, ...){\
+static inline in2_TYPENAME MUX__##in2_TYPENAME##__##in1_TYPENAME##__##in2_TYPENAME(EN_ENO_PARAMS in1_TYPENAME K, UINT param_count, ...){\
   va_list ap;\
   UINT i;\
   in2_TYPENAME tmp;\
@@ -1005,7 +1017,7 @@ __ANY(__in1_anyint_)
 /******************************************/
 
 #define __compare_(fname,TYPENAME, COND) \
-static inline BOOL fname(EN_ENO_PARAMS, UINT param_count, TYPENAME op1, ...){\
+static inline BOOL fname(EN_ENO_PARAMS UINT param_count, TYPENAME op1, ...){\
   va_list ap;\
   UINT i;\
   TEST_EN(BOOL)\
@@ -1158,19 +1170,19 @@ __compare_string(LE__BOOL__STRING, <= ) /* Overloaded function */
     /*     NE     */
     /**************/
 #define __ne_num(fname, TYPENAME) \
-static inline BOOL fname(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
+static inline BOOL fname(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
   TEST_EN(BOOL)\
   return op1 != op2 ? 1 : 0;\
 }
 
 #define __ne_time(fname, TYPENAME) \
-static inline BOOL fname(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
+static inline BOOL fname(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
   TEST_EN(BOOL)\
   return __time_cmp(op1, op2) != 0 ? 1 : 0;\
 }
 
 #define __ne_string(fname, TYPENAME) \
-static inline BOOL fname(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
+static inline BOOL fname(EN_ENO_PARAMS TYPENAME op1, TYPENAME op2){\
   TEST_EN(BOOL)\
   return __STR_CMP(op1, op2) != 0 ? 1 : 0;\
 }
@@ -1225,7 +1237,7 @@ static inline __strlen_t __len(STRING IN) {return IN.len;}
 
 /* A function, with 1 input paramter, implementing a generic OPERATION */
 #define __genoper_1p_(fname,ret_TYPENAME, par_TYPENAME, OPERATION) \
-static inline ret_TYPENAME fname(EN_ENO_PARAMS, par_TYPENAME par1){\
+static inline ret_TYPENAME fname(EN_ENO_PARAMS par_TYPENAME par1){\
   TEST_EN(ret_TYPENAME)\
   return (ret_TYPENAME)OPERATION(par1);\
 }
@@ -1240,7 +1252,7 @@ __ANY_INT(__iec_)
     /****************/
 
 #define __left(TYPENAME) \
-static inline STRING LEFT__STRING__STRING__##TYPENAME(EN_ENO_PARAMS, STRING IN, TYPENAME L){\
+static inline STRING LEFT__STRING__STRING__##TYPENAME(EN_ENO_PARAMS STRING IN, TYPENAME L){\
     STRING res;\
     TEST_EN_COND(STRING, L < 0)\
     res = __INIT_STRING;\
@@ -1257,7 +1269,7 @@ __ANY_INT(__left)
     /*****************/
 
 #define __right(TYPENAME) \
-static inline STRING RIGHT__STRING__STRING__##TYPENAME(EN_ENO_PARAMS, STRING IN, TYPENAME L){\
+static inline STRING RIGHT__STRING__STRING__##TYPENAME(EN_ENO_PARAMS STRING IN, TYPENAME L){\
   STRING res;\
   TEST_EN_COND(STRING, L < 0)\
   res = __INIT_STRING;\
@@ -1274,7 +1286,7 @@ __ANY_INT(__right)
     /***************/
 
 #define __mid(TYPENAME) \
-static inline STRING MID__STRING__STRING__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, STRING IN, TYPENAME L, TYPENAME P){\
+static inline STRING MID__STRING__STRING__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS STRING IN, TYPENAME L, TYPENAME P){\
   STRING res;\
   TEST_EN_COND(STRING, L < 0 || P < 0)\
   res = __INIT_STRING;\
@@ -1293,7 +1305,7 @@ __ANY_INT(__mid)
     /*     CONCAT     */
     /******************/
 
-static inline STRING CONCAT(EN_ENO_PARAMS, UINT param_count, ...){
+static inline STRING CONCAT(EN_ENO_PARAMS UINT param_count, ...){
   UINT i;
   STRING res;
   va_list ap;
@@ -1344,7 +1356,7 @@ static inline STRING __insert(STRING IN1, STRING IN2, __strlen_t P){
 }
 
 #define __iec_(TYPENAME) \
-static inline STRING INSERT__STRING__STRING__STRING__##TYPENAME(EN_ENO_PARAMS, STRING str1, STRING str2, TYPENAME P){\
+static inline STRING INSERT__STRING__STRING__STRING__##TYPENAME(EN_ENO_PARAMS STRING str1, STRING str2, TYPENAME P){\
   TEST_EN_COND(STRING, P < 0)\
   return (STRING)__insert(str1,str2,(__strlen_t)P);\
 }
@@ -1375,7 +1387,7 @@ static inline STRING __delete(STRING IN, __strlen_t L, __strlen_t P){
 }
 
 #define __iec_(TYPENAME) \
-static inline STRING DELETE__STRING__STRING__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, STRING str, TYPENAME L, TYPENAME P){\
+static inline STRING DELETE__STRING__STRING__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS STRING str, TYPENAME L, TYPENAME P){\
   TEST_EN_COND(STRING, L < 0 || P < 0)\
   return (STRING)__delete(str,(__strlen_t)L,(__strlen_t)P);\
 }
@@ -1416,7 +1428,7 @@ static inline STRING __replace(STRING IN1, STRING IN2, __strlen_t L, __strlen_t 
 }
 
 #define __iec_(TYPENAME) \
-static inline STRING REPLACE__STRING__STRING__STRING__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS, STRING str1, STRING str2, TYPENAME L, TYPENAME P){\
+static inline STRING REPLACE__STRING__STRING__STRING__##TYPENAME##__##TYPENAME(EN_ENO_PARAMS STRING str1, STRING str2, TYPENAME L, TYPENAME P){\
   TEST_EN_COND(STRING, L < 0 || P < 0)\
   return (STRING)__replace(str1,str2,(__strlen_t)L,(__strlen_t)P);\
 }
@@ -1444,7 +1456,7 @@ static inline __strlen_t __pfind(STRING* IN1, STRING* IN2){
 }
 
 #define __iec_(TYPENAME) \
-static inline TYPENAME FIND__##TYPENAME##__STRING__STRING(EN_ENO_PARAMS, STRING str1, STRING str2){\
+static inline TYPENAME FIND__##TYPENAME##__STRING__STRING(EN_ENO_PARAMS STRING str1, STRING str2){\
   TEST_EN(TYPENAME)\
   return (TYPENAME)__pfind(&str1,&str2);\
 }
@@ -1464,47 +1476,47 @@ __ANY_INT(__iec_)
 /**************************************/
 
 
-static inline TIME ADD_TIME(EN_ENO_PARAMS, TIME IN1, TIME IN2){
+static inline TIME ADD_TIME(EN_ENO_PARAMS TIME IN1, TIME IN2){
   TEST_EN(TIME)
   return __time_add(IN1, IN2);
 }
 
-static inline TOD ADD_TOD_TIME(EN_ENO_PARAMS, TOD IN1, TIME IN2){
+static inline TOD ADD_TOD_TIME(EN_ENO_PARAMS TOD IN1, TIME IN2){
   TEST_EN(TOD)
   return __time_add(IN1, IN2);
 }
 
-static inline DT ADD_DT_TIME(EN_ENO_PARAMS, DT IN1, TIME IN2){
+static inline DT ADD_DT_TIME(EN_ENO_PARAMS DT IN1, TIME IN2){
   TEST_EN(DT)
   return __time_add(IN1, IN2);
 }
 
-static inline TIME SUB_TIME(EN_ENO_PARAMS, TIME IN1, TIME IN2){
+static inline TIME SUB_TIME(EN_ENO_PARAMS TIME IN1, TIME IN2){
   TEST_EN(TIME)
   return __time_sub(IN1, IN2);
 }
 
-static inline TIME SUB_DATE_DATE(EN_ENO_PARAMS, DATE IN1, DATE IN2){
+static inline TIME SUB_DATE_DATE(EN_ENO_PARAMS DATE IN1, DATE IN2){
   TEST_EN(TIME)
   return __time_sub(IN1, IN2);
 }
 
-static inline TOD SUB_TOD_TIME(EN_ENO_PARAMS, TOD IN1, TIME IN2){
+static inline TOD SUB_TOD_TIME(EN_ENO_PARAMS TOD IN1, TIME IN2){
   TEST_EN(TOD)
   return __time_sub(IN1, IN2);
 }
 
-static inline TIME SUB_TOD_TOD(EN_ENO_PARAMS, TOD IN1, TOD IN2){
+static inline TIME SUB_TOD_TOD(EN_ENO_PARAMS TOD IN1, TOD IN2){
   TEST_EN(TIME)
   return __time_sub(IN1, IN2);
 }
 
-static inline DT SUB_DT_TIME(EN_ENO_PARAMS, DT IN1, TIME IN2){
+static inline DT SUB_DT_TIME(EN_ENO_PARAMS DT IN1, TIME IN2){
   TEST_EN(DT)
   return __time_sub(IN1, IN2);
 }
 
-static inline TIME SUB_DT_DT(EN_ENO_PARAMS, DT IN1, DT IN2){
+static inline TIME SUB_DT_DT(EN_ENO_PARAMS DT IN1, DT IN2){
   TEST_EN(TIME)
   return __time_sub(IN1, IN2);
 }
@@ -1512,7 +1524,7 @@ static inline TIME SUB_DT_DT(EN_ENO_PARAMS, DT IN1, DT IN2){
 
 /***  MULTIME  ***/
 #define __iec_(TYPENAME)\
-static inline TIME MULTIME__TIME__TIME__##TYPENAME(EN_ENO_PARAMS, TIME IN1, TYPENAME IN2){\
+static inline TIME MULTIME__TIME__TIME__##TYPENAME(EN_ENO_PARAMS TIME IN1, TYPENAME IN2){\
   TEST_EN(TIME)\
   return __time_mul(IN1, (LREAL)IN2);\
 }
@@ -1521,7 +1533,7 @@ __ANY_NUM(__iec_)
 
 /***  MUL  ***/
 #define __iec_(TYPENAME)\
-static inline TIME MUL__TIME__TIME__##TYPENAME(EN_ENO_PARAMS, TIME IN1, TYPENAME IN2){\
+static inline TIME MUL__TIME__TIME__##TYPENAME(EN_ENO_PARAMS TIME IN1, TYPENAME IN2){\
   TEST_EN(TIME)\
   return __time_mul(IN1, (LREAL)IN2);\
 }
@@ -1530,7 +1542,7 @@ __ANY_NUM(__iec_)
 
 /***  DIVTIME  ***/
 #define __iec_(TYPENAME)\
-static inline TIME DIVTIME__TIME__TIME__##TYPENAME(EN_ENO_PARAMS, TIME IN1, TYPENAME IN2){\
+static inline TIME DIVTIME__TIME__TIME__##TYPENAME(EN_ENO_PARAMS TIME IN1, TYPENAME IN2){\
   TEST_EN(TIME)\
   return __time_div(IN1, (LREAL)IN2);\
 }
@@ -1539,7 +1551,7 @@ __ANY_NUM(__iec_)
 
 /***  DIV  ***/
 #define __iec_(TYPENAME)\
-static inline TIME DIV__TIME__TIME__##TYPENAME(EN_ENO_PARAMS, TIME IN1, TYPENAME IN2){\
+static inline TIME DIV__TIME__TIME__##TYPENAME(EN_ENO_PARAMS TIME IN1, TYPENAME IN2){\
   TEST_EN(TIME)\
   return __time_div(IN1, (LREAL)IN2);\
 }
@@ -1547,7 +1559,7 @@ __ANY_NUM(__iec_)
 #undef __iec_
 
 /*** CONCAT_DATE_TOD ***/
-static inline DT CONCAT_DATE_TOD(EN_ENO_PARAMS, DATE IN1, TOD IN2){
+static inline DT CONCAT_DATE_TOD(EN_ENO_PARAMS DATE IN1, TOD IN2){
   TEST_EN(DT)
   return __time_add(IN1, IN2);
 }

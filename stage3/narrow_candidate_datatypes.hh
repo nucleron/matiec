@@ -249,6 +249,7 @@ class narrow_candidate_datatypes_c: public iterator_visitor_c {
     /* B 1.6 Sequential function chart elements */
     /********************************************/
     void *visit(transition_condition_c *symbol);
+    void *visit(action_qualifier_c     *symbol);
 
     /********************************/
     /* B 1.7 Configuration elements */

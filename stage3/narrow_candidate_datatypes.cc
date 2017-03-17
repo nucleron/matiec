@@ -930,6 +930,20 @@ void *narrow_candidate_datatypes_c::visit(transition_condition_c *symbol) {
 	return NULL;
 }
 
+
+void *narrow_candidate_datatypes_c::visit(action_qualifier_c *symbol) {
+	if (symbol->action_time) {
+		for(unsigned int i = 0; i < symbol->action_time->candidate_datatypes.size(); i++) {
+			if (get_datatype_info_c::is_TIME_compatible(symbol->action_time->candidate_datatypes[i]))
+				symbol->action_time->datatype = symbol->action_time->candidate_datatypes[i];
+		}
+		symbol->action_time->accept(*this);
+	}
+	symbol->action_qualifier->accept(*this); // Not really necessary for now...
+	return NULL;
+}
+    
+
 /********************************/
 /* B 1.7 Configuration elements */
 /********************************/

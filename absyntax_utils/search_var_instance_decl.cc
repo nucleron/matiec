@@ -214,6 +214,12 @@ void *search_var_instance_decl_c::visit(eno_param_declaration_c *symbol) {
   return NULL;
 }
 
+/* EN : BOOL */
+void *search_var_instance_decl_c::visit(en_param_declaration_c *symbol) {
+  if (compare_identifiers(symbol->name, search_name) == 0)
+    return symbol->type_decl;
+  return NULL;
+}
 
 /* VAR [CONSTANT] var_init_decl_list END_VAR */
 /* option -> may be NULL ! */

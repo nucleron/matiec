@@ -198,12 +198,6 @@ extern bool allow_function_overloading;
  */
 extern bool allow_extensible_function_parameters;
 
-/* A global flag used to tell the parser whether to include the full variable location when printing out error messages... */
-extern bool full_token_loc;
-
-/* A global flag used to tell the parser whether to generate conversion function for enumerated data types. */
-extern bool conversion_functions;
-
 /* A global flag used to tell the parser whether to allow use of DREF and '^' operators (defined in IEC 61131-3 v3) */
 extern bool allow_ref_dereferencing;
 
@@ -379,6 +373,32 @@ typedef struct YYLTYPE {
 %type  <leaf>	prev_declared_derived_function_block_name
 %type  <leaf>	prev_declared_program_type_name
 
+/* Tokens used to help resolve a reduce/reduce conflict */
+/* The mentioned conflict only arises due to a non-standard feature added to matiec.
+ * Namely, the permission to call functions returning VOID as an ST statement.
+ *   e.g.:   FUNCTION foo: VOID
+ *             VAR_INPUT i: INT; END_VAR;
+ *             ...
+ *           END_FUNCTION
+ *
+ *           FUNCTION BAR: BOOL
+ *             VAR b: bool; END_VAR
+ *             foo(i:=42);   <--- Calling foo outside an expression. Function invocation is considered an ST statement!!
+ *           END_FUNCTION
+ *
+ *  The above function invocation may also be reduced to a formal IL function invocation, so we get a 
+ *  reduce/reduce conflict to st_statement_list/instruction_list  (or something equivalent).
+ *
+ *  We solve this by having flex determine if it is ST or IL invocation (ST ends with a ';' !!).
+ *  At the start of a function/FB/program body, flex will tell bison whether to expect ST or IL code!
+ *  This is why we need the following two tokens!
+ *
+ *  NOTE: flex was already determing whther it was parsing ST or IL code as it can only send 
+ *        EOL tokens when parsing IL. However, did this silently without telling bison about this.
+ *        Now, it does
+ */
+%token          start_ST_body_token
+%token          start_IL_body_token
 
 
 
@@ -655,6 +675,9 @@ typedef struct YYLTYPE {
 %token DT
 %token TIME_OF_DAY
 %token TOD
+
+/* A non-standard extension! */
+%token VOID
 
 /******************************************************/
 /* Symbols defined in                                 */
@@ -2573,7 +2596,7 @@ structure_type_name: identifier;
 
 data_type_declaration:
   TYPE type_declaration_list END_TYPE
-	{$$ = new data_type_declaration_c($2, locloc(@$)); if (conversion_functions) include_string((create_enumtype_conversion_functions_c::get_declaration($$)).c_str());}
+	{$$ = new data_type_declaration_c($2, locloc(@$)); if (runtime_options.conversion_functions) include_string((create_enumtype_conversion_functions_c::get_declaration($$)).c_str());}
 /* ERROR_CHECK_BEGIN */
 | TYPE END_TYPE
 	{$$ = NULL; print_err_msg(locl(@1), locf(@2), "no data type declared in data type(s) declaration."); yynerrs++;}
@@ -5001,7 +5024,7 @@ function_declaration:
 /* POST_PARSING and STANDARD_PARSING: The rules expected to be applied after the preparser has finished. */
 | function_name_declaration ':' elementary_type_name io_OR_function_var_declarations_list function_body END_FUNCTION
 	{$$ = new function_declaration_c($1, $3, $4, $5, locloc(@$));
-	 add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
+	 if (!runtime_options.disable_implicit_en_eno) add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
 	 variable_name_symtable.pop();
 	 direct_variable_symtable.pop();
 	 library_element_symtable.insert($1, prev_declared_derived_function_name_token);
@@ -5009,7 +5032,15 @@ function_declaration:
 /* | FUNCTION derived_function_name ':' derived_type_name io_OR_function_var_declarations_list function_body END_FUNCTION */
 | function_name_declaration ':' derived_type_name io_OR_function_var_declarations_list function_body END_FUNCTION
 	{$$ = new function_declaration_c($1, $3, $4, $5, locloc(@$));
-	 add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
+	 if (!runtime_options.disable_implicit_en_eno) add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
+	 variable_name_symtable.pop();
+	 direct_variable_symtable.pop();
+	 library_element_symtable.insert($1, prev_declared_derived_function_name_token);
+	}
+/* | FUNCTION derived_function_name ':' VOID io_OR_function_var_declarations_list function_body END_FUNCTION */
+| function_name_declaration ':' VOID io_OR_function_var_declarations_list function_body END_FUNCTION
+	{$$ = new function_declaration_c($1, new void_type_name_c(locloc(@3)), $4, $5, locloc(@$));
+	 if (!runtime_options.disable_implicit_en_eno) add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
 	 variable_name_symtable.pop();
 	 direct_variable_symtable.pop();
 	 library_element_symtable.insert($1, prev_declared_derived_function_name_token);
@@ -5178,8 +5209,8 @@ var2_init_decl_list:
 
 
 function_body:
-  statement_list	{$$ = $1;} /* if we leave it for the default action we get a type clash! */
-| instruction_list	{$$ = $1;} /* if we leave it for the default action we get a type clash! */
+  start_ST_body_token statement_list	{$$ = $2;}
+| start_IL_body_token instruction_list	{$$ = $2;}
 /*
 | ladder_diagram
 | function_block_diagram
@@ -5220,7 +5251,7 @@ function_block_declaration:
 /* POST_PARSING: The rules expected to be applied after the preparser runs. Will only run if pre-parsing command line option is ON. */
 | FUNCTION_BLOCK prev_declared_derived_function_block_name io_OR_other_var_declarations_list function_block_body END_FUNCTION_BLOCK
 	{$$ = new function_block_declaration_c($2, $3, $4, locloc(@$));
-	 add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
+	 if (!runtime_options.disable_implicit_en_eno) add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
 	 /* Clear the variable_name_symtable. Since we have finished parsing the function block,
 	  * the variable names are now out of scope, so are no longer valid!
 	  */
@@ -5231,7 +5262,7 @@ function_block_declaration:
 | FUNCTION_BLOCK derived_function_block_name io_OR_other_var_declarations_list function_block_body END_FUNCTION_BLOCK
 	{$$ = new function_block_declaration_c($2, $3, $4, locloc(@$));
 	 library_element_symtable.insert($2, prev_declared_derived_function_block_name_token);
-	 add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
+	 if (!runtime_options.disable_implicit_en_eno) add_en_eno_param_decl_c::add_to($$); /* add EN and ENO declarations, if not already there */
 	 /* Clear the variable_name_symtable. Since we have finished parsing the function block,
 	  * the variable names are now out of scope, so are no longer valid!
 	  */
@@ -5252,7 +5283,7 @@ function_block_declaration:
 	{$$ = NULL; print_err_msg(locl(@2), locf(@3), "no variable(s) declared and body defined in function block declaration."); yynerrs++;}
 */
 | FUNCTION_BLOCK derived_function_block_name io_OR_other_var_declarations_list function_block_body END_OF_INPUT
-	{$$ = NULL; print_err_msg(locf(@1), locl(@2), "no variable(s) declared and body defined in function block declaration."); yynerrs++;}	
+	{$$ = NULL; print_err_msg(locf(@1), locl(@2), "expecting END_FUNCTION_BLOCK before end of file."); yynerrs++;}	
 | FUNCTION_BLOCK error END_FUNCTION_BLOCK
 	{$$ = NULL; print_err_msg(locf(@2), locl(@2), "unknown error in function block declaration."); yyerrok;}
 /* ERROR_CHECK_END */
@@ -5361,9 +5392,21 @@ non_retentive_var_decls:
 
 
 function_block_body:
-  statement_list	{$$ = $1;}
-| instruction_list	{$$ = $1;}
-| sequential_function_chart	{$$ = $1;}
+  /* NOTE: start_ST_body_token is a dummy token generated by flex when it determines it is starting to parse a POU body in ST
+   *       start_IL_body_token is a dummy token generated by flex when it determines it is starting to parse a POU body in IL
+   *     These tokens help remove a reduce/reduce conflict in bison, between a formal function invocation in IL, and a
+   *     function invocation used as a statement (a non-standard extension added to matiec) 
+   *       e.g: FUNCTION_BLOCK foo
+   *            VAR ... END_VAR
+   *              func_returning_void(in1 := 3        
+   *                                 );               --> only the presence or absence of ';' will determine whether this is a IL or ST 
+   *                                                      function invocation. (In standard ST this would be ilegal, in matiec we allow it 
+   *                                                      when activated by a command line option)
+   *            END_FUNCTION
+   */
+  start_ST_body_token statement_list	{$$ = $2;}  
+| start_IL_body_token instruction_list	{$$ = $2;}
+| sequential_function_chart		{$$ = $1;}
 /*
 | ladder_diagram
 | function_block_diagram
@@ -5803,17 +5846,17 @@ transition_priority:
 
 
 transition_condition:
-  ':' eol_list simple_instr_list
-	{$$ = new transition_condition_c($3, NULL, locloc(@$));}
+ start_IL_body_token ':' eol_list simple_instr_list
+	{$$ = new transition_condition_c($4, NULL, locloc(@$));}
 | ASSIGN expression ';'
 	{$$ = new transition_condition_c(NULL, $2, locloc(@$));}
 /* ERROR_CHECK_BEGIN */
-| eol_list simple_instr_list
-	{$$ = NULL; print_err_msg(locl(@1), locf(@2), "':' missing before IL condition in transition declaration."); yynerrs++;}
-| ':' eol_list error
+| start_IL_body_token eol_list simple_instr_list
+	{$$ = NULL; print_err_msg(locl(@2), locf(@3), "':' missing before IL condition in transition declaration."); yynerrs++;}
+| start_IL_body_token ':' eol_list error
 	{$$ = NULL;
-	 if (is_current_syntax_token()) {print_err_msg(locl(@2), locf(@3), "no instructions defined in IL condition of transition declaration.");}
-	 else {print_err_msg(locf(@3), locl(@3), "invalid instructions in IL condition of transition declaration."); yyclearin;}
+	 if (is_current_syntax_token()) {print_err_msg(locl(@3), locf(@4), "no instructions defined in IL condition of transition declaration.");}
+	 else {print_err_msg(locf(@4), locl(@4), "invalid instructions in IL condition of transition declaration."); yyclearin;}
 	 yyerrok;
 	}
 | ASSIGN ';'
@@ -7812,11 +7855,16 @@ function_invocation:
 	{$$ = new function_invocation_c($1, $3, NULL, locloc(@$)); if (NULL == dynamic_cast<poutype_identifier_c*>($1)) ERROR;} // $1 should be a poutype_identifier_c
 | function_name_no_NOT_clashes '(' param_assignment_nonformal_list ')'
 	{$$ = new function_invocation_c($1, NULL, $3, locloc(@$)); if (NULL == dynamic_cast<poutype_identifier_c*>($1)) ERROR;} // $1 should be a poutype_identifier_c
+| function_name_no_NOT_clashes '(' ')'
+	{if (NULL == dynamic_cast<poutype_identifier_c*>($1)) ERROR; // $1 should be a poutype_identifier_c
+	 if (runtime_options.allow_missing_var_in)
+		{$$ = new function_invocation_c($1, NULL, NULL, locloc(@$));}
+	 else
+		{$$ = NULL; print_err_msg(locl(@2), locf(@3), "no parameter defined in function invocation of ST expression."); yynerrs++;}
+	}
 /* ERROR_CHECK_BEGIN */ 
 | function_name_no_NOT_clashes param_assignment_formal_list ')'
   {$$ = NULL; print_err_msg(locl(@1), locf(@2), "'(' missing after function name in ST expression."); yynerrs++;}
-| function_name_no_NOT_clashes '(' ')'
-  {$$ = NULL; print_err_msg(locl(@2), locf(@3), "no parameter defined in function invocation of ST expression."); yynerrs++;}
 | function_name_no_NOT_clashes '(' error ')'
   {$$ = NULL; print_err_msg(locf(@3), locl(@3), "invalid parameter(s) defined in function invocation of ST expression."); yyerrok;}
 | function_name_no_NOT_clashes '(' param_assignment_formal_list error
@@ -7857,6 +7905,15 @@ statement:
 | subprogram_control_statement
 | selection_statement
 | iteration_statement
+| function_invocation 
+	{ /* This is a non-standard extension (calling a function outside an ST expression!) */
+	  /* Only allow this if command line option has been selected...                     */
+	  $$ = $1; 
+	  if (!runtime_options.allow_void_datatype) {
+	    print_err_msg(locf(@1), locl(@1), "Function invocation in ST code is not allowed outside an expression. To allow this non-standard syntax, activate the apropriate command line option."); 
+	    yynerrs++;
+	  }
+	}  
 ;
 
 
@@ -8443,10 +8500,6 @@ bool allow_function_overloading = false;
  */
 bool allow_extensible_function_parameters = false;
 
-/* A global flag indicating whether to include the full variable location when printing out error messages... */
-bool full_token_loc;
-/* A global flag used to tell the parser whether to generate conversion function for enumerated data types. */
-bool conversion_functions = false;
 /* A global flag used to tell the parser whether to allow use of DREF and '^' operators (defined in IEC 61131-3 v3) */
 bool allow_ref_dereferencing;
 /* A global flag used to tell the parser whether to allow use of REF_TO ANY datatypes (non-standard extension) */
@@ -8522,7 +8575,7 @@ void print_err_msg(int first_line,
   if (first_filename == NULL) first_filename = unknown_file;
   if ( last_filename == NULL)  last_filename = unknown_file;
 
-  if (full_token_loc) {
+  if (runtime_options.full_token_loc) {
     if (first_filename == last_filename)
       fprintf(stderr, "%s:%d-%d..%d-%d: error: %s\n", first_filename, first_line, first_column, last_line, last_column, additional_error_msg);
     else
@@ -8708,8 +8761,6 @@ static int parse_files(const char *libfilename, const char *filename) {
 
   allow_function_overloading           = true;
   allow_extensible_function_parameters = true;
-  full_token_loc                       = runtime_options.full_token_loc;
-  conversion_functions                 = runtime_options.conversion_functions;
   allow_ref_dereferencing              = runtime_options.ref_standard_extensions;
   allow_ref_to_any                     = runtime_options.ref_nonstand_extensions;
   allow_ref_to_in_derived_datatypes    = runtime_options.ref_nonstand_extensions;
@@ -8745,8 +8796,6 @@ static int parse_files(const char *libfilename, const char *filename) {
 
   allow_function_overloading           = false;
   allow_extensible_function_parameters = false;
-  full_token_loc                       = runtime_options.full_token_loc;
-  conversion_functions                 = runtime_options.conversion_functions;
   allow_ref_dereferencing              = runtime_options.ref_standard_extensions;
   allow_ref_to_any                     = runtime_options.ref_nonstand_extensions;
   allow_ref_to_in_derived_datatypes    = runtime_options.ref_nonstand_extensions;

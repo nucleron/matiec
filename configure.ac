@@ -42,6 +42,10 @@ if test "x${have_bison_correct}" = xno; then
   (exit 1); exit 1;
 fi
 
+if test "x$LEX" == "x:"; then
+   AC_MSG_ERROR("flex/lex is missing")
+fi
+
 # Checks for header files.
 AC_CHECK_HEADERS([float.h limits.h stdint.h stdlib.h string.h strings.h sys/timeb.h unistd.h])
 

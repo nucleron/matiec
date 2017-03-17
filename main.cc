@@ -116,12 +116,17 @@ static void printusage(const char *cmd) {
   printf(" -p : allow use of forward references                (a non-standard extension?)\n");  
   printf(" -l : use a relaxed datatype equivalence model       (a non-standard extension?)\n");  
   printf(" -s : allow use of safe datatypes (SAFEBOOL, etc.)   (defined in PLCOpen Safety)\n"); // PLCopen TC5 "Safety Software Technical Specification - Part 1" v1.0
+  printf(" -n : allow use of nested comments                   (an IEC 61131-3 v3 feature)\n");
   printf(" -r : allow use of references (REF_TO, REF, ^, NULL) (an IEC 61131-3 v3 feature)\n");
   printf(" -R : allow use of REF_TO ANY datatypes              (a non-standard extension!)\n");
   printf("        as well as REF_TO in ARRAYs and STRUCTs      (a non-standard extension!)\n");
   printf(" -a : allow use of non-literals in array size limits (a non-standard extension!)\n");
+  printf(" -i : allow POUs with no in out and inout parameters (a non-standard extension!)\n");
+  printf(" -b : allow functions returning VOID                 (a non-standard extension!)\n");
+  printf(" -e : disable generation of implicit EN and ENO parameters.\n");
   printf(" -c : create conversion functions for enumerated data types\n");
   printf(" -O : options for output (code generation) stage. Available options for %s are...\n", cmd);
+  runtime_options.allow_missing_var_in    = false; /* disable: allow definition and invocation of POUs with no input, output and in_out parameters! */
   stage4_print_options();
   printf("\n");
   printf("%s - Copyright (C) 2003-2014 \n"
@@ -141,14 +146,17 @@ int main(int argc, char **argv) {
   int path_len;
 
   /* Default values for the command line options... */
-  runtime_options.pre_parsing             = false; /* allow use of forward references (run pre-parsing phase before the definitive parsing phase that builds the AST) */
-  runtime_options.safe_extensions         = false; /* allow use of SAFExxx datatypes */
-  runtime_options.full_token_loc          = false; /* error messages specify full token location */
-  runtime_options.conversion_functions    = false; /* Create a conversion function for derived datatype */
-  runtime_options.nested_comments         = false; /* Allow the use of nested comments. */
-  runtime_options.ref_standard_extensions = false; /* Allow the use of REFerences (keywords REF_TO, REF, DREF, ^, NULL). */
-  runtime_options.ref_nonstand_extensions = false; /* Allow the use of non-standard extensions to REF_TO datatypes: REF_TO ANY, and REF_TO in struct elements! */
-  runtime_options.nonliteral_in_array_size= false; /* Allow the use of constant non-literals when specifying size of arrays (ARRAY [1..max] OF INT) */
+  runtime_options.allow_void_datatype     = false; /* disable: allow declaration of functions returning VOID  */
+  runtime_options.allow_missing_var_in    = false; /* disable: allow definition and invocation of POUs with no input, output and in_out parameters! */
+  runtime_options.disable_implicit_en_eno = false; /* disable: do not generate EN and ENO parameters */
+  runtime_options.pre_parsing             = false; /* disable: allow use of forward references (run pre-parsing phase before the definitive parsing phase that builds the AST) */
+  runtime_options.safe_extensions         = false; /* disable: allow use of SAFExxx datatypes */
+  runtime_options.full_token_loc          = false; /* disable: error messages specify full token location */
+  runtime_options.conversion_functions    = false; /* disable: create a conversion function for derived datatype */
+  runtime_options.nested_comments         = false; /* disable: Allow the use of nested comments. */
+  runtime_options.ref_standard_extensions = false; /* disable: Allow the use of REFerences (keywords REF_TO, REF, DREF, ^, NULL). */
+  runtime_options.ref_nonstand_extensions = false; /* disable: Allow the use of non-standard extensions to REF_TO datatypes: REF_TO ANY, and REF_TO in struct elements! */
+  runtime_options.nonliteral_in_array_size= false; /* disable: Allow the use of constant non-literals when specifying size of arrays (ARRAY [1..max] OF INT) */
   runtime_options.includedir              = NULL;  /* Include directory, where included files will be searched for... */
 
   /* Default values for the command line options... */
@@ -157,7 +165,7 @@ int main(int argc, char **argv) {
   /******************************************/
   /*   Parse command line options...        */
   /******************************************/
-  while ((optres = getopt(argc, argv, ":nhvfplsrRacI:T:O:")) != -1) {
+  while ((optres = getopt(argc, argv, ":nehvfplsrRabicI:T:O:")) != -1) {
     switch(optres) {
     case 'h':
       printusage(argv[0]);
@@ -173,8 +181,11 @@ int main(int argc, char **argv) {
               runtime_options.ref_nonstand_extensions  = true;  break;
     case 'r': runtime_options.ref_standard_extensions  = true;  break;
     case 'a': runtime_options.nonliteral_in_array_size = true;  break;
+    case 'b': runtime_options.allow_void_datatype      = true;  break;
+    case 'i': runtime_options.allow_missing_var_in     = true;  break;
     case 'c': runtime_options.conversion_functions     = true;  break;
     case 'n': runtime_options.nested_comments          = true;  break;
+    case 'e': runtime_options.disable_implicit_en_eno  = true;  break;
     case 'I':
       /* NOTE: To improve the usability under windows:
        *       We delete last char's path if it ends with "\".

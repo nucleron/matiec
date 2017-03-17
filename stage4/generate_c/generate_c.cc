@@ -859,53 +859,83 @@ class generate_c_pous_c {
     
       /* (B.2) Temporary variable for function's return value */
       /* It will have the same name as the function itself! */
-      s4o.print(s4o.indent_spaces);
-      symbol->type_name->accept(print_base); /* return type */
-      s4o.print(" ");
-      symbol->derived_function_name->accept(print_base);
-      s4o.print(" = ");
-      {
-        /* get the default value of this variable's type */
-        symbol_c *default_value = type_initial_value_c::get(symbol->type_name);
-        if (default_value == NULL) ERROR;
-        initialization_analyzer_c initialization_analyzer(default_value);
-        switch (initialization_analyzer.get_initialization_type()) {
-          case initialization_analyzer_c::struct_it:
-            {
-              generate_c_structure_initialization_c *structure_initialization = new generate_c_structure_initialization_c(&s4o);
-              structure_initialization->init_structure_default(symbol->type_name);
-              structure_initialization->init_structure_values(default_value);
-              delete structure_initialization;
-            }
-            break;
-          case initialization_analyzer_c::array_it:
-            {
-              generate_c_array_initialization_c *array_initialization = new generate_c_array_initialization_c(&s4o);
-              array_initialization->init_array_size(symbol->type_name);
-              array_initialization->init_array_values(default_value);
-              delete array_initialization;
-            }
-            break;
-          default:
-            default_value->accept(print_base);
-            break;
+      /* NOTE: matiec supports a non-standard syntax, in which functions do not return a value
+       *       (declared as returning the special non-standard datatype VOID)
+       *       e.g.:   FUNCTION foo: VOID
+       *                ...
+       *               END_FUNCTION
+       *       
+       *       These functions cannot return any value, so they do not need a variable to
+       *       store the return value.
+       *       Note that any attemot to sto a value in the implicit variable
+       *       e.g.:   FUNCTION foo: VOID
+       *                ...
+       *                 foo := 42;
+       *               END_FUNCTION
+       *       will always return a datatype incompatilibiyt error in stage 3 of matiec, 
+       *       so it is safe for stage 4 to assume that this return variable will never be needed
+       *       if the function's return type is VOID.
+       */
+      if (!get_datatype_info_c::is_VOID(symbol->type_name->datatype)) { // only print return variable if return datatype is not VOID
+        s4o.print(s4o.indent_spaces);
+        symbol->type_name->accept(print_base); /* return type */
+        s4o.print(" ");
+        symbol->derived_function_name->accept(print_base);
+        s4o.print(" = ");
+        {
+          /* get the default value of this variable's type */
+          symbol_c *default_value = type_initial_value_c::get(symbol->type_name);
+          if (default_value == NULL) ERROR;
+          initialization_analyzer_c initialization_analyzer(default_value);
+          switch (initialization_analyzer.get_initialization_type()) {
+            case initialization_analyzer_c::struct_it:
+              {
+                generate_c_structure_initialization_c *structure_initialization = new generate_c_structure_initialization_c(&s4o);
+                structure_initialization->init_structure_default(symbol->type_name);
+                structure_initialization->init_structure_values(default_value);
+                delete structure_initialization;
+              }
+              break;
+            case initialization_analyzer_c::array_it:
+              {
+                generate_c_array_initialization_c *array_initialization = new generate_c_array_initialization_c(&s4o);
+                array_initialization->init_array_size(symbol->type_name);
+                array_initialization->init_array_values(default_value);
+                delete array_initialization;
+              }
+              break;
+            default:
+              default_value->accept(print_base);
+              break;
+          }
         }
       }
       s4o.print(";\n\n");
       
-      s4o.print(s4o.indent_spaces + "// Control execution\n");
-      s4o.print(s4o.indent_spaces + "if (!EN) {\n");
-      s4o.indent_right();
-      s4o.print(s4o.indent_spaces + "if (__ENO != NULL) {\n");
-      s4o.indent_right();
-      s4o.print(s4o.indent_spaces + "*__ENO = __BOOL_LITERAL(FALSE);\n");
-      s4o.indent_left();
-      s4o.print(s4o.indent_spaces + "}\n");
-      s4o.print(s4o.indent_spaces + "return ");
-      symbol->derived_function_name->accept(print_base);
-      s4o.print(";\n");
-      s4o.indent_left();
-      s4o.print(s4o.indent_spaces + "}\n");
+      
+      // Only generate the code that controls the execution of the function's body if the
+      // function contains a declaration of both the EN and ENO variables
+      search_var_instance_decl_c search_var(symbol);
+      identifier_c  en_var("EN");
+      identifier_c eno_var("ENO");
+      if (   (search_var.get_vartype(& en_var) == search_var_instance_decl_c::input_vt)
+          && (search_var.get_vartype(&eno_var) == search_var_instance_decl_c::output_vt)) {
+        s4o.print(s4o.indent_spaces + "// Control execution\n");
+        s4o.print(s4o.indent_spaces + "if (!EN) {\n");
+        s4o.indent_right();
+        s4o.print(s4o.indent_spaces + "if (__ENO != NULL) {\n");
+        s4o.indent_right();
+        s4o.print(s4o.indent_spaces + "*__ENO = __BOOL_LITERAL(FALSE);\n");
+        s4o.indent_left();
+        s4o.print(s4o.indent_spaces + "}\n");
+        if (!get_datatype_info_c::is_VOID(symbol->type_name->datatype)) { // only print return variable if return datatype is not VOID
+          s4o.print(s4o.indent_spaces + "return ");
+          symbol->derived_function_name->accept(print_base);
+          s4o.print(";\n");
+        }
+        s4o.indent_left();
+        s4o.print(s4o.indent_spaces + "}\n");
+      }
     
       /* (C) Function body */
       generate_c_SFC_IL_ST_c generate_c_code(&s4o, symbol->derived_function_name, symbol);
@@ -921,9 +951,12 @@ class generate_c_pous_c {
       vardecl->print(symbol->var_declarations_list);
       delete vardecl;
       
-      s4o.print(s4o.indent_spaces + "return ");
-      symbol->derived_function_name->accept(print_base);
-      s4o.print(";\n");
+      if (!get_datatype_info_c::is_VOID(symbol->type_name->datatype)) { // only print 'return <fname>' if return datatype is not VOID
+        s4o.print(s4o.indent_spaces + "return ");
+        symbol->derived_function_name->accept(print_base);
+        s4o.print(";\n");
+      }
+
       s4o.indent_left();
       s4o.print(s4o.indent_spaces + "}\n\n\n");
     
@@ -1071,31 +1104,40 @@ class generate_c_pous_c {
       } else {
         s4o.print(" {\n");
         s4o.indent_right();
-      
-        s4o.print(s4o.indent_spaces + "// Control execution\n");
-        s4o.print(s4o.indent_spaces + "if (!");
-        s4o.print(GET_VAR);
-        s4o.print("(");
-        s4o.print(FB_FUNCTION_PARAM);
-        s4o.print("->EN)) {\n");
-        s4o.indent_right();
-        s4o.print(s4o.indent_spaces);
-        s4o.print(SET_VAR);
-        s4o.print("(");
-        s4o.print(FB_FUNCTION_PARAM);
-        s4o.print("->,ENO,,__BOOL_LITERAL(FALSE));\n");
-        s4o.print(s4o.indent_spaces + "return;\n");
-        s4o.indent_left();
-        s4o.print(s4o.indent_spaces + "}\n");
-        s4o.print(s4o.indent_spaces + "else {\n");
-        s4o.indent_right();
-        s4o.print(s4o.indent_spaces);
-        s4o.print(SET_VAR);
-        s4o.print("(");
-        s4o.print(FB_FUNCTION_PARAM);
-        s4o.print("->,ENO,,__BOOL_LITERAL(TRUE));\n");
-        s4o.indent_left();
-        s4o.print(s4o.indent_spaces + "}\n");
+
+        // Only generate the code that controls the execution of the function's body if the
+        // function contains a declaration of both the EN and ENO variables
+        search_var_instance_decl_c search_var(symbol);
+        identifier_c  en_var("EN");
+        identifier_c eno_var("ENO");
+        if (   (search_var.get_vartype(& en_var) == search_var_instance_decl_c::input_vt)
+            && (search_var.get_vartype(&eno_var) == search_var_instance_decl_c::output_vt)) {
+
+          s4o.print(s4o.indent_spaces + "// Control execution\n");
+          s4o.print(s4o.indent_spaces + "if (!");
+          s4o.print(GET_VAR);
+          s4o.print("(");
+          s4o.print(FB_FUNCTION_PARAM);
+          s4o.print("->EN)) {\n");
+          s4o.indent_right();
+          s4o.print(s4o.indent_spaces);
+          s4o.print(SET_VAR);
+          s4o.print("(");
+          s4o.print(FB_FUNCTION_PARAM);
+          s4o.print("->,ENO,,__BOOL_LITERAL(FALSE));\n");
+          s4o.print(s4o.indent_spaces + "return;\n");
+          s4o.indent_left();
+          s4o.print(s4o.indent_spaces + "}\n");
+          s4o.print(s4o.indent_spaces + "else {\n");
+          s4o.indent_right();
+          s4o.print(s4o.indent_spaces);
+          s4o.print(SET_VAR);
+          s4o.print("(");
+          s4o.print(FB_FUNCTION_PARAM);
+          s4o.print("->,ENO,,__BOOL_LITERAL(TRUE));\n");
+          s4o.indent_left();
+          s4o.print(s4o.indent_spaces + "}\n");
+        }
       
         /* (C.4) Initialize TEMP variables */
         /* function body */
@@ -1380,6 +1422,15 @@ void *visit(configuration_declaration_c *symbol) {
   s4o.print("/*     FILE GENERATED BY iec2c             */\n");
   s4o.print("/* Editing this file is not recommended... */\n");
   s4o.print("/*******************************************/\n\n");
+  
+  if (runtime_options.disable_implicit_en_eno) {
+    // If we are not generating the EN and ENO parameters for functions and FB,
+    //   then make sure we use the standard library version compiled without these parameters too!
+    s4o.print("#ifndef DISABLE_EN_ENO_PARAMETERS\n");
+    s4o.print("#define DISABLE_EN_ENO_PARAMETERS\n");
+    s4o.print("#endif\n");
+  }
+  
   s4o.print("#include \"iec_std_lib.h\"\n\n");
   s4o.print("#include \"accessor.h\"\n\n"); 
   s4o.print("#include \"POUS.h\"\n\n");
@@ -1685,6 +1736,15 @@ END_RESOURCE
       s4o.print("/*     FILE GENERATED BY iec2c             */\n");
       s4o.print("/* Editing this file is not recommended... */\n");
       s4o.print("/*******************************************/\n\n");
+  
+      if (runtime_options.disable_implicit_en_eno) {
+        // If we are not generating the EN and ENO parameters for functions and FB,
+        //   then make sure we use the standard library version compiled without these parameters too!
+        s4o.print("#ifndef DISABLE_EN_ENO_PARAMETERS\n");
+        s4o.print("#define DISABLE_EN_ENO_PARAMETERS\n");
+        s4o.print("#endif\n");
+      }
+      
       s4o.print("#include \"iec_std_lib.h\"\n\n");
       
       /* (A) resource declaration... */
@@ -2118,7 +2178,17 @@ class generate_c_c: public iterator_visitor_c {
 /* B 0 - Programming Model */
 /***************************/
     void *visit(library_c *symbol) {
-      pous_incl_s4o.print("#ifndef __POUS_H\n#define __POUS_H\n\n#include \"accessor.h\"\n#include \"iec_std_lib.h\"\n\n");
+      pous_incl_s4o.print("#ifndef __POUS_H\n#define __POUS_H\n\n");
+      
+      if (runtime_options.disable_implicit_en_eno) {
+        // If we are not generating the EN and ENO parameters for functions and FB,
+        //   then make sure we use the standard library version compiled without these parameters too!
+        pous_incl_s4o.print("#ifndef DISABLE_EN_ENO_PARAMETERS\n");
+        pous_incl_s4o.print("#define DISABLE_EN_ENO_PARAMETERS\n");
+        pous_incl_s4o.print("#endif\n");
+      }
+      
+      pous_incl_s4o.print("#include \"accessor.h\"\n#include \"iec_std_lib.h\"\n\n");
 
       for(int i = 0; i < symbol->n; i++) {
         symbol->elements[i]->accept(*this);
@@ -2258,7 +2328,7 @@ class generate_c_c: public iterator_visitor_c {
         config_s4o.print("unsigned long long common_ticktime__ = ");
         config_s4o.print_long_long_integer(common_ticktime);
         config_s4o.print("; /*ns*/\n");
-        config_s4o.print("unsigned long greatest_tick_count__ = ");
+        config_s4o.print("unsigned long greatest_tick_count__ = (unsigned long)");
         config_s4o.print_long_integer(calculate_common_ticktime.get_greatest_tick_count());
         config_s4o.print("; /*tick*/\n");
       }

@@ -327,21 +327,8 @@ class generate_c_il_c: public generate_c_base_and_typeid_c, il_default_variable_
 
       this->implicit_variable_result.accept(*this);
       s4o.print(" = ");
-      s4o.print(operation);
-      operand->datatype->accept(*this);
-      /* NOTE: we are calling a standard Function: 
-       *         1st parameter: EN  (enable)
-       *         2nd parameter: ENO (enable output)
-       *         3rd parameter: number of operands we will be passing (required because we are calling an extensible standard function!)
-       *         4th parameter: the left  hand side of the comparison expression (in out case, the IL implicit variable)
-       *         4th parameter: the right hand side of the comparison expression (in out case, current operand)
-       */
-      s4o.print("(__BOOL_LITERAL(TRUE), NULL, 2, ");
-      this->implicit_variable_current.accept(*this);
-      s4o.print(", ");
-      operand->accept(*this);
-      s4o.print(")");
-
+      // print_compare_function is in generate_c_base_c, which is inherited by generate_c_il_c
+      print_compare_function(operation, operand->datatype, &(this->implicit_variable_current), operand);
       return NULL;
     }
 
@@ -897,8 +884,11 @@ void *visit(il_function_call_c *symbol) {
   int fdecl_mutiplicity =  function_symtable.count(symbol->function_name);
   if (fdecl_mutiplicity == 0) ERROR;
 
-  this->implicit_variable_result.accept(*this);
-  s4o.print(" = ");
+  /* when function returns a void, we do not store the value in the default variable! */
+  if (!get_datatype_info_c::is_VOID(symbol->datatype)) {
+    this->implicit_variable_result.accept(*this);
+    s4o.print(" = ");
+  }
     
   if (function_type_prefix != NULL) {
     s4o.print("(");
@@ -937,6 +927,7 @@ void *visit(il_function_call_c *symbol) {
   }
   s4o.print("(");
   s4o.indent_right();
+  s4o.print("\n"+s4o.indent_spaces);
   
   int nb_param = 0;
   PARAM_LIST_ITERATOR() {
@@ -991,6 +982,7 @@ void *visit(il_function_call_c *symbol) {
   }
   
   s4o.print(")");
+  s4o.indent_left();  
 
   CLEAR_PARAM_LIST()
 
@@ -1299,8 +1291,11 @@ void *visit(il_formal_funct_call_c *symbol) {
     /* function being called is NOT overloaded! */
     f_decl = NULL; 
 
-  this->implicit_variable_result.accept(*this);
-  s4o.print(" = ");
+  /* when function returns a void, we do not store the value in the default variable! */
+  if (!get_datatype_info_c::is_VOID(symbol->datatype)) {
+    this->implicit_variable_result.accept(*this);
+    s4o.print(" = ");
+  }
   
   if (function_type_prefix != NULL) {
     s4o.print("(");
@@ -1711,12 +1706,12 @@ void *visit(DIV_operator_c *symbol) {
 
 void *visit(MOD_operator_c *symbol)	{XXX_operator(&(this->implicit_variable_result), " %= ", this->current_operand); return NULL;}
 
-void *visit(GT_operator_c *symbol)	{CMP_operator(this->current_operand, "GT_"); return NULL;}
-void *visit(GE_operator_c *symbol)	{CMP_operator(this->current_operand, "GE_"); return NULL;}
-void *visit(EQ_operator_c *symbol)	{CMP_operator(this->current_operand, "EQ_"); return NULL;}
-void *visit(LT_operator_c *symbol)	{CMP_operator(this->current_operand, "LT_"); return NULL;}
-void *visit(LE_operator_c *symbol)	{CMP_operator(this->current_operand, "LE_"); return NULL;}
-void *visit(NE_operator_c *symbol)	{CMP_operator(this->current_operand, "NE_"); return NULL;}
+void *visit(GT_operator_c *symbol)	{CMP_operator(this->current_operand, "GT"); return NULL;}
+void *visit(GE_operator_c *symbol)	{CMP_operator(this->current_operand, "GE"); return NULL;}
+void *visit(EQ_operator_c *symbol)	{CMP_operator(this->current_operand, "EQ"); return NULL;}
+void *visit(LT_operator_c *symbol)	{CMP_operator(this->current_operand, "LT"); return NULL;}
+void *visit(LE_operator_c *symbol)	{CMP_operator(this->current_operand, "LE"); return NULL;}
+void *visit(NE_operator_c *symbol)	{CMP_operator(this->current_operand, "NE"); return NULL;}
 
 
 //SYM_REF0(CAL_operator_c)
