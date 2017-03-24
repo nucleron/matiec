@@ -104,7 +104,7 @@ class generate_c_inlinefcall_c: public generate_c_base_and_typeid_c {
       }
 
       s4o.print(s4o.indent_spaces);
-      s4o.print("inline ");
+      s4o.print("static inline ");      
       function_type_prefix->accept(*this);
       s4o.print(" __");
       fbname->accept(*this);
