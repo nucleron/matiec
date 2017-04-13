@@ -1597,7 +1597,7 @@ class generate_c_resources_c: public generate_c_base_and_typeid_c {
     stage4out_c *s4o_ptr;
 
   public:
-    generate_c_resources_c(stage4out_c *s4o_ptr, symbol_c *config_scope, symbol_c *resource_scope, unsigned long time)
+    generate_c_resources_c(stage4out_c *s4o_ptr, symbol_c *config_scope, symbol_c *resource_scope, unsigned long long time)
       : generate_c_base_and_typeid_c(s4o_ptr) {
       current_configuration = config_scope;
       search_config_instance   = new search_var_instance_decl_c(config_scope);

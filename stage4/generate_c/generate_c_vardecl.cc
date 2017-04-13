@@ -836,6 +836,7 @@ class generate_c_vardecl_c: protected generate_c_base_and_typeid_c {
      *                c = 99.9;
      *
      * constructorinit_vf: initialising of member variables...
+     * TODO: FIX THIS COMMENT!!! It is wrong!!!
      *                e.g. for a constructor...
      *                class_name_c(void)
      *                : a(9), b(99), c(99.9)  { // code... }
@@ -956,6 +957,39 @@ class generate_c_vardecl_c: protected generate_c_base_and_typeid_c {
       }
       return NULL;
     }
+
+    /* helper function for declare_variables().
+     * Only called from one place!
+     * 
+     * If we were to follow the visitor pattern, the following code should really be placed inside the
+     *  method visit(structure_element_initialization_list_c *), but would be conditionally executed in 
+     *  a specific state/situation (which would need to be indicated through flags -> yuck). 
+     * Instead of adding the code there inside an if() statement, I (msousa) prefered to keep it separate.
+     * 
+     * To be honest I consider this a quick hack. 
+     * The time is approaching for when this class will need a general clean up.
+     */
+    void print_fb_explicit_initial_values(symbol_c *fbvar_name, symbol_c *init_values_list) {
+      structure_element_initialization_list_c *init_list = dynamic_cast<structure_element_initialization_list_c *>(init_values_list);
+      if (NULL == init_list) ERROR;
+      
+      for (int i = 0; i < init_list->n; i++) {
+        structure_element_initialization_c *init_list_elem = dynamic_cast<structure_element_initialization_c *>(init_list->elements[i]);
+        if (NULL == init_list_elem) ERROR;
+        s4o.print("\n");
+        s4o.print(s4o.indent_spaces);
+        s4o.print(INIT_VAR);
+        s4o.print("(");
+        this->print_variable_prefix();
+        fbvar_name->accept(*this);
+        s4o.print(".");
+        init_list_elem->structure_element_name->accept(*this);
+        s4o.print(",");
+        init_list_elem->value->accept(*this);
+        print_retain();
+        s4o.print(")");        
+      }
+    };
 
     /* Actually produce the output where variables are declared... */
     /* Note that located variables and EN/ENO are the exception, they
@@ -1092,6 +1126,14 @@ class generate_c_vardecl_c: protected generate_c_base_and_typeid_c {
       if (wanted_varformat == constructorinit_vf) {
         for(int i = 0; i < list->n; i++) {
           if (is_fb) {
+            /* If we are declaring and/or initializing a FB instance, then we
+             * simply call the FBNAME_init__() function, which will initialise the
+             * FB instance with the default values of this FB type.
+             *  For a FB instance declared as:
+             *     VAR my_fb : FB_typ; END_VAR
+             * The generated C code will look something like:
+             *   FB_TYP_init__(&data__->MY_FB,retain);
+             */
             s4o.print(nv->get());
             this->current_var_type_symbol->accept(*this);
             s4o.print(FB_INIT_SUFFIX);
@@ -1100,6 +1142,18 @@ class generate_c_vardecl_c: protected generate_c_base_and_typeid_c {
             list->elements[i]->accept(*this);
             print_retain();
             s4o.print(");");
+            if (this->current_var_init_symbol != NULL) {
+              /* This FB instance declaration includes an explicit initialiser list
+               * e.g. VAR my_fb : FB_typ := (var1 := 42, var2 := 'hello'); END_VAR
+               *                         --------------------------------
+               * To handle this, we insert some extra code to set each of the initialised
+               * FB variables one by one...
+               * The generated C code will lokk something like:
+               * __INIT_VAR(data__->my_fb.var1, __INT_LITERAL(42), retain);
+               * __INIT_VAR(data__->my_fb.var1, __STRING_LITERAL("hello"), retain);
+               */  
+              print_fb_explicit_initial_values(list->elements[i], this->current_var_init_symbol);
+            }
           }
           else if (this->current_var_init_symbol != NULL) {
             s4o.print(nv->get());
@@ -1256,11 +1310,6 @@ void *visit(non_retain_option_c *symbol) {
 void *visit(input_declarations_c *symbol) {
   TRACE("input_declarations_c");
   if ((wanted_vartype & input_vt) != 0) {
-/*
-    // TO DO ...
-    if (symbol->option != NULL)
-      symbol->option->accept(*this);
-*/
     //s4o.indent_right();
     current_vartype = input_vt;
     if (symbol->option != NULL)
@@ -1331,7 +1380,6 @@ void *visit(en_param_declaration_c *symbol) {
     }
 
     if (wanted_varformat == constructorinit_vf) {
-      /* NOTE: I (Mario) think this is dead code - never gets executed. Must confirm it before deleting it... */
       s4o.print(nv->get());
       s4o.print(INIT_VAR);
       s4o.print("(");
@@ -1401,7 +1449,6 @@ void *visit(eno_param_declaration_c *symbol) {
     }
 
     if (wanted_varformat == constructorinit_vf) {
-      /* NOTE: I (Mario) think this is dead code - never gets executed. Must confirm it before deleting it... */
       s4o.print(nv->get());
       s4o.print(INIT_VAR);
       s4o.print("(");
