@@ -2191,7 +2191,7 @@ class generate_c_c: public iterator_visitor_c {
       pous_incl_s4o.print("#include \"accessor.h\"\n#include \"iec_std_lib.h\"\n\n");
 
       for(int i = 0; i < symbol->n; i++) {
-        symbol->elements[i]->accept(*this);
+        symbol->get_element(i)->accept(*this);
       }
 
       pous_incl_s4o.print("#endif //__POUS_H\n");
@@ -2229,8 +2229,8 @@ class generate_c_c: public iterator_visitor_c {
     /* helper symbol for data_type_declaration */
     void *visit(type_declaration_list_c *symbol) {
       for(int i = 0; i < symbol->n; i++) {
-        symbol->elements[i]->accept(generate_c_implicit_typedecl);
-        symbol->elements[i]->accept(generate_c_typedecl);
+        symbol->get_element(i)->accept(generate_c_implicit_typedecl);
+        symbol->get_element(i)->accept(generate_c_typedecl);
       }
       return NULL;
     }

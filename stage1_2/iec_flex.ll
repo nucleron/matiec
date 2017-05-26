@@ -96,6 +96,11 @@
 %option nounput
 */
 
+/* The '%option debug' makes the generated scanner run in
+ * debug mode.
+%option debug
+ */
+
 /**************************************************/
 /* External Variable and Function declarations... */
 /**************************************************/

@@ -164,12 +164,12 @@ void *print_list(list_c *list,
 			       std::string post_elem_str = "") {
   if (list->n > 0) {
     s4o.print(pre_elem_str);
-    list->elements[0]->accept(*this);
+    list->get_element(0)->accept(*this);
   }
 
   for(int i = 1; i < list->n; i++) {
     s4o.print(inter_elem_str);
-    list->elements[i]->accept(*this);
+    list->get_element(i)->accept(*this);
   }
 
   if (list->n > 0)

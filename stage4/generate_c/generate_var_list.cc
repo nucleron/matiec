@@ -289,7 +289,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
       if (list == NULL) ERROR;
 
       for(int i = 0; i < list->n; i++) {
-        declare_variable(list->elements[i]);
+        declare_variable(list->get_element(i));
       }
     }
     
@@ -793,7 +793,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
 
     void *visit(structure_element_declaration_list_c *symbol) {
       for(int i = 0; i < symbol->n; i++) {
-        symbol->elements[i]->accept(*this);
+        symbol->get_element(i)->accept(*this);
       }
       return NULL;
     }
@@ -860,7 +860,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
       transition_number = 0;
       action_number = 0;
       for(int i = 0; i < symbol->n; i++) {
-        symbol->elements[i]->accept(*this);
+        symbol->get_element(i)->accept(*this);
       }
       return NULL;
     }
@@ -937,7 +937,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
     //SYM_LIST(step_name_list_c)
     void *visit(step_name_list_c *symbol) {
       for(int i = 0; i < symbol->n; i++) {
-        symbol->elements[i]->accept(*this);
+        symbol->get_element(i)->accept(*this);
         if (i < symbol->n - 1)
           s4o.print(",");
       }

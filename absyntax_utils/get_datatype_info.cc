@@ -362,7 +362,7 @@ class get_struct_info_c : null_visitor_c {
     void *visit(structure_element_declaration_list_c *symbol) {
       /* now search the structure declaration */
       for(int i = 0; i < symbol->n; i++) {
-        void *tmp = symbol->elements[i]->accept(*this);
+        void *tmp = symbol->get_element(i)->accept(*this);
         if (NULL != tmp) return tmp;
       }
       return NULL; // not found!!
@@ -713,8 +713,8 @@ bool get_datatype_info_c::is_arraytype_equal_relaxed(symbol_c *first_type, symbo
   
   // comparison of each subrange start and end elements
   for (int i = 0; i < subrange_list_1->n; i++) {
-    subrange_c *subrange_1 = dynamic_cast<subrange_c *>(subrange_list_1->elements[i]);
-    subrange_c *subrange_2 = dynamic_cast<subrange_c *>(subrange_list_2->elements[i]);
+    subrange_c *subrange_1 = dynamic_cast<subrange_c *>(subrange_list_1->get_element(i));
+    subrange_c *subrange_2 = dynamic_cast<subrange_c *>(subrange_list_2->get_element(i));
     if ((NULL == subrange_1) || (NULL == subrange_2)) ERROR;
     
     /* check whether the subranges have the same values, using the result of the constant folding agorithm.

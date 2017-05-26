@@ -119,7 +119,7 @@ void yyerror (const char *error_msg);
 #define FOR_EACH_ELEMENT(elem, list, code) {		\
   symbol_c *elem;					\
   for(int i = 0; i < list->n; i++) {			\
-    elem = list->elements[i];				\
+    elem = list->get_element(i);			\
     code;						\
   }							\
 }
@@ -3213,15 +3213,15 @@ structure_element_declaration_list:
 
 structure_element_declaration:
   structure_element_name ':' simple_spec_init
-	{$$ = new structure_element_declaration_c($1, $3, locloc(@$));}
+	{$$ = new structure_element_declaration_c($1, $3, locloc(@$)); $$->token = $1->token;}
 | structure_element_name ':' subrange_spec_init
-	{$$ = new structure_element_declaration_c($1, $3, locloc(@$));}
+	{$$ = new structure_element_declaration_c($1, $3, locloc(@$)); $$->token = $1->token;}
 | structure_element_name ':' enumerated_spec_init
-	{$$ = new structure_element_declaration_c($1, $3, locloc(@$));}
+	{$$ = new structure_element_declaration_c($1, $3, locloc(@$)); $$->token = $1->token;}
 | structure_element_name ':' array_spec_init
-	{$$ = new structure_element_declaration_c($1, $3, locloc(@$));}
+	{$$ = new structure_element_declaration_c($1, $3, locloc(@$)); $$->token = $1->token;}
 | structure_element_name ':' initialized_structure
-	{$$ = new structure_element_declaration_c($1, $3, locloc(@$));}
+	{$$ = new structure_element_declaration_c($1, $3, locloc(@$)); $$->token = $1->token;}
 | structure_element_name ':' ref_spec_init                              /* non standard extension: Allow use of struct elements storing REF_TO datatypes (either using REF_TO or a previosuly declared ref type) */
 	{ $$ = new structure_element_declaration_c($1, $3, locloc(@$));
 	  if (!allow_ref_to_in_derived_datatypes) {

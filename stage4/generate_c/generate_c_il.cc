@@ -661,7 +661,7 @@ void *visit(subscript_list_c *symbol) {
     if (dimension == NULL) ERROR;
 
     s4o.print("[(");
-    symbol->elements[i]->accept(*this);
+    symbol->get_element(i)->accept(*this);
     s4o.print(") - (");
     dimension->accept(*this);
     s4o.print(")]");
@@ -711,9 +711,9 @@ void *visit(instruction_list_c *symbol) {
   declare_implicit_variable_back();
   
   for(int i = 0; i < symbol->n; i++) {
-    print_line_directive(symbol->elements[i]);
+    print_line_directive(symbol->get_element(i));
     s4o.print(s4o.indent_spaces);
-    symbol->elements[i]->accept(*this);
+    symbol->get_element(i)->accept(*this);
     s4o.print(";\n");
   }
   return NULL;

@@ -161,7 +161,7 @@ void forced_narrow_candidate_datatypes_c::forced_narrow_il_instruction(symbol_c 
 void *forced_narrow_candidate_datatypes_c::visit(instruction_list_c *symbol) {
   for(int j = 0; j < 2; j++) {
     for(int i = symbol->n-1; i >= 0; i--) {
-      symbol->elements[i]->accept(*this);
+      symbol->get_element(i)->accept(*this);
     }
   }
 
@@ -171,7 +171,7 @@ void *forced_narrow_candidate_datatypes_c::visit(instruction_list_c *symbol) {
    */
   /*
   for(int i = symbol->n-1; i >= 0; i--) {
-    if (NULL == symbol->elements[i]->datatype)
+    if (NULL == symbol->get_element(i)->datatype)
       ERROR;
   }
   */
