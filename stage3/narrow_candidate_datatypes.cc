@@ -107,8 +107,8 @@ static void set_datatype(symbol_c *datatype, symbol_c *symbol) {
 
 
 /* Only set the symbol's desired datatype to 'datatype' if that datatype is in the candidate_datatype list */
-// static void set_datatype_in_prev_il_instructions(symbol_c *datatype, std::vector <symbol_c *> prev_il_instructions) {
-static void set_datatype_in_prev_il_instructions(symbol_c *datatype, il_instruction_c *symbol) {
+// NOTE: This function is virtual! The forced_narrow_candidate_datatypes_c has a slightly different version of this fuinction!!
+void narrow_candidate_datatypes_c::set_datatype_in_prev_il_instructions(symbol_c *datatype, il_instruction_c *symbol) {
 	if (NULL == symbol) ERROR;
 	for (unsigned int i = 0; i < symbol->prev_il_instruction.size(); i++)
 		set_datatype(datatype, symbol->prev_il_instruction[i]);
@@ -1281,6 +1281,7 @@ void *narrow_candidate_datatypes_c::visit(il_simple_instruction_c *symbol)	{
  *       So, if yoy wish to set the prev_il_instruction->datatype = symbol->datatype;
  *       do it __before__ calling set_il_operand_datatype() (which in turn calls il_operand->accept(*this)) !!
  */
+int  count = 0;
 void *narrow_candidate_datatypes_c::set_il_operand_datatype(symbol_c *il_operand, symbol_c *datatype) {
 	if (NULL == il_operand) return NULL; /* if no IL operand => error in the source code!! */
 

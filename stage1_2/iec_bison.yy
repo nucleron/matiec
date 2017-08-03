@@ -3535,7 +3535,7 @@ variable:
   symbolic_variable
 | prev_declared_direct_variable
 | eno_identifier
-	{$$ = new symbolic_variable_c($1, locloc(@$));}
+	{$$ = new symbolic_variable_c($1, locloc(@$)); $$->token = $1->token;}
 ;
 
 
@@ -3544,15 +3544,15 @@ symbolic_variable:
  *         prev_declared_variable_name | prev_declared_fb_name | prev_declared_global_var_name
  */
   prev_declared_fb_name
-	{$$ = new symbolic_variable_c($1, locloc(@$));}
+	{$$ = new symbolic_variable_c($1, locloc(@$)); $$->token = $1->token;}
 | prev_declared_global_var_name
-	{$$ = new symbolic_variable_c($1, locloc(@$));}
+	{$$ = new symbolic_variable_c($1, locloc(@$)); $$->token = $1->token;}
 | prev_declared_variable_name
-	{$$ = new symbolic_variable_c($1, locloc(@$));}
+	{$$ = new symbolic_variable_c($1, locloc(@$)); $$->token = $1->token;}
 | multi_element_variable
 /*
 | identifier
-	{$$ = new symbolic_variable_c($1, locloc(@$));}
+	{$$ = new symbolic_variable_c($1, locloc(@$)); $$->token = $1->token;}
 */
 | symbolic_variable '^'     
 	/* Dereferencing operator defined in IEC 61131-3 v3. However, implemented here differently then how it is defined in the standard! See following note for explanation! */
@@ -3594,7 +3594,7 @@ symbolic_variable:
 any_symbolic_variable:
 // variable_name -> replaced by any_identifier
   any_identifier
-	{$$ = new symbolic_variable_c($1, locloc(@$));}
+	{$$ = new symbolic_variable_c($1, locloc(@$)); $$->token = $1->token;}
 | any_multi_element_variable
 ;
 
@@ -8388,7 +8388,7 @@ for_statement:
 */
 control_variable: 
   prev_declared_variable_name 
-	{$$ = new symbolic_variable_c($1,locloc(@$));};
+	{$$ = new symbolic_variable_c($1,locloc(@$)); $$->token = $1->token;};
 // control_variable: identifier {$$ = $1;};
 
 /* Integrated directly into for_statement */
