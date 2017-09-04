@@ -178,18 +178,22 @@ b*/
  * back to the bison parser...
  */
 #define YY_USER_ACTION {\
-	yylloc.first_line = current_tracking->lineNumber;			\
-	yylloc.first_column = current_tracking->currentTokenStart;		\
-	yylloc.first_file = current_filename;					\
-	yylloc.first_order = current_order;					\
-	yylloc.last_line = current_tracking->lineNumber;			\
-	yylloc.last_column = current_tracking->currentChar - 1;			\
-	yylloc.last_file = current_filename;					\
-	yylloc.last_order = current_order;					\
+	previous_tracking   =*current_tracking;					\
+	yylloc.first_line   = current_tracking->lineNumber;			\
+	yylloc.first_column = current_tracking->currentChar;			\
+	yylloc.first_file   = current_filename;					\
+	yylloc.first_order  = current_order;					\
+	\
+	UpdateTracking(yytext);							\
+	\
+	yylloc.last_line    = current_tracking->lineNumber;			\
+	yylloc.last_column  = current_tracking->currentChar - 1;		\
+	yylloc.last_file    = current_filename;					\
+	yylloc.last_order   = current_order;					\
+	\
 	current_tracking->currentTokenStart = current_tracking->currentChar;	\
 	current_order++;							\
 	}
-
 
 
 /* Since this lexical parser we defined only works in ASCII based
@@ -222,22 +226,25 @@ int get_identifier_token(const char *identifier_str);
 /***************************************************/
 
 %{
+void UpdateTracking(const char *text);
+/* return the character back to the input stream. */
+void unput_char(const char c);
 /* return all the text in the current token back to the input stream. */
-void unput_text(unsigned int n);
+void unput_text(int n);
 /* return all the text in the current token back to the input stream, 
  * but first return to the stream an additional character to mark the end of the token. 
  */
-void unput_and_mark(const char c);
+void unput_and_mark(const char mark_char);
 
 void include_file(const char *include_filename);
 
 /* The body_state tries to find a ';' before a END_PROGRAM, END_FUNCTION or END_FUNCTION_BLOCK or END_ACTION
- * To do so, it must ignore comments and pragmas. This means that we cannot do this in a signle lex rule.
- * However, we must store any text we consume in every rule, so we can push it back into the buffer
+ * and ignores ';' inside comments and pragmas. This means that we cannot do this in a signle lex rule.
+ * Body_state therefore stores ALL text we consume in every rule, so we can push it back into the buffer
  * once we have decided if we are parsing ST or IL code. The following functions manage that buffer used by
  * the body_state.
  */
-void  append_bodystate_buffer(const char *yytext);
+void  append_bodystate_buffer(const char *text, int is_whitespace = 0);
 void   unput_bodystate_buffer(void);
 int  isempty_bodystate_buffer(void);
 
@@ -557,7 +564,6 @@ typedef struct {
     int currentChar;
     int lineLength;
     int currentTokenStart;
-    char *buffer;
     FILE *in_file;
   } tracking_t;
 
@@ -573,7 +579,8 @@ typedef struct {
 	  const char *filename;
 	} include_stack_t;
 
-tracking_t *current_tracking = NULL;
+tracking_t * current_tracking = NULL;
+tracking_t  previous_tracking;
 include_stack_t include_stack[MAX_INCLUDE_DEPTH];
 int include_stack_ptr = 0;
 
@@ -1126,15 +1133,11 @@ END_CONFIGURATION		unput_text(0); BEGIN(INITIAL);
 	 * WARNING: From 2016-05 (May 2016) onwards, matiec supports a non-standard option in which a Function
 	 *          may be declared with no Input, Output or IN_OUT variables. This means that the above 
 	 *          assumption is no longer valid.
-	 *          To make things simpler (i.e. so we do not need to change the transition conditions in the flex state machine),
-	 *          when using this non-standard extension matiec requires that Functions must include at least one 
-	 *          VAR .. END_VAR block. This implies that the above assumption remains valid!
-	 *          This limitation of requiring a VAR .. END_VAR block is not really very limiting, as a function
-	 *          with no input and output parameters will probably need to do some 'work', and for that it will
-	 *          probably need some local variables declared in a VAR .. END_VAR block.
-	 *          Note however that in the extreme it might make sense to have a function with no variables whatsoever
-	 *          (e.g.: a function that only calls other functions that all return VOID - another non standard extension!).
-	 *          For now we do not consider this!!
+	 * 
+	 * NOTE: Some code being parsed may be erroneous and not contain any VAR END_VAR block.
+	 *       To generate error messages that make sense, the flex state machine should not get lost
+	 *       in these situations. We therefore consider the possibility of finding 
+	 *       END_FUNCTION, END_FUNCTION_BLOCK or END_PROGRAM when inside the header_state.
 	 */
 <header_state>{
 VAR				| /* execute the next rule's action, i.e. fall-through! */
@@ -1145,7 +1148,17 @@ VAR_EXTERNAL			|
 VAR_GLOBAL			|
 VAR_TEMP			|
 VAR_CONFIG			|
-VAR_ACCESS			unput_text(0); /* printf("\nChanging to vardecl_list_state\n") */; BEGIN(vardecl_list_state);
+VAR_ACCESS			unput_text(0); BEGIN(vardecl_list_state);
+
+END_FUNCTION			| /* execute the next rule's action, i.e. fall-through! */
+END_FUNCTION_BLOCK		| 
+END_PROGRAM			unput_text(0); BEGIN(vardecl_list_state); 
+				/* Notice that we do NOT go directly to body_state, as that requires a push().
+				 * If we were to puch to body_state here, then the corresponding pop() at the
+				 *end of body_state would return to header_state.
+				 * After this pop() header_state would not return to INITIAL as it should, but
+				 * would instead enter an infitie loop push()ing again to body_state
+				 */
 }
 
 
@@ -1165,7 +1178,15 @@ END_FUNCTION			unput_text(0); BEGIN(INITIAL);
 END_FUNCTION_BLOCK		unput_text(0); BEGIN(INITIAL);
 END_PROGRAM			unput_text(0); BEGIN(INITIAL);
 
-.				unput_text(0); yy_push_state(body_state); //printf("\nChanging to body_state\n");/* anything else, just change to body_state! */
+				/* NOTE: Handling of whitespace...
+				 *   - Must come __before__ the next rule for any single character '.'
+				 *   - If the rules were reversed, any whitespace with a single space (' ') 
+				 *     would be handled by the '.' rule instead of the {whitespace} rule!
+				 */
+{st_whitespace}			/* Eat any whitespace */ 
+
+				/* anything else, just change to body_state! */
+.				unput_text(0); yy_push_state(body_state); //printf("\nChanging to body_state\n");
 }
 
 
@@ -1179,14 +1200,19 @@ END_VAR				yy_pop_state(); return END_VAR; /* pop back to vardecl_list_state */
 <body_state>{
 {st_whitespace}			{/* In body state we do not process any tokens,
 				  * we simply store them for later processing!
-				  * NOTE: all whitespace in the begining
-				  * of body_state must be removed so we can
-				  * detect ':=' in the beginning of TRANSACTION
-				  * conditions preceded by whitespace.
-				  * => only add to bodystate_buffer when not in beginning.
+				  * NOTE: we must return ALL text when in body_state, including
+				  * all comments and whitespace, so as not
+				  * to lose track of the line_number and column number
+				  * used when printing debugging messages.
+				  * NOTE: some of the following rules depend on the fact that 
+				  * the body state buffer is either empty or only contains white space up to
+				  * that point. Since the vardecl_list_state will eat up all
+				  * whitespace before entering the body_state, the contents of the bodystate_buffer
+				  * will _never_ start with whitespace if the previous state was vardecl_list_state. 
+				  * However, it is possible to enter the body_state from other states (e.g. when 
+				  * parsing SFC code, that contains transitions or actions in other languages)
 				  */
-				  if (!isempty_bodystate_buffer()) 
-				    append_bodystate_buffer(yytext); 
+				 append_bodystate_buffer(yytext, 1 /* is whitespace */); 
 				}
 	/* 'INITIAL_STEP' always used in beginning of SFCs !! */
 INITIAL_STEP			{ if (isempty_bodystate_buffer())	{unput_text(0); BEGIN(sfc_state);}
@@ -1249,7 +1275,7 @@ END_CONFIGURATION	BEGIN(INITIAL); return END_CONFIGURATION;
 	/* NOTE: pragmas are handled right at the beginning... */
 
 	/* The whitespace */
-<INITIAL,header_state,config_state,vardecl_list_state,vardecl_state,st_state,sfc_state,task_init_state,sfc_qualifier_state>{st_whitespace}	/* Eat any whitespace */
+<INITIAL,header_state,config_state,vardecl_state,st_state,sfc_state,task_init_state,sfc_qualifier_state>{st_whitespace}	/* Eat any whitespace */
 <il_state>{il_whitespace}		/* Eat any whitespace */
  /* NOTE: Due to the need of having the following rule have higher priority,
   *        the following rule was moved to an earlier position in this file.
@@ -1903,59 +1929,40 @@ _			/* do nothing - eat it up!*/
 
 tracking_t *GetNewTracking(FILE* in_file) {
   tracking_t* new_env = new tracking_t;
-  new_env->eof = 0;
-  new_env->lineNumber = 0;
+  new_env->eof         = 0;
+  new_env->lineNumber  = 1;
   new_env->currentChar = 0;
-  new_env->lineLength = 0;
+  new_env->lineLength  = 0;
   new_env->currentTokenStart = 0;
-  new_env->buffer = (char*)malloc(MAX_LINE_LENGTH);
   new_env->in_file = in_file;
   return new_env;
 }
 
 
 void FreeTracking(tracking_t *tracking) {
-  free(tracking->buffer);
   delete tracking;
+}
+
+
+void UpdateTracking(const char *text) {
+  const char *newline, *token = text;
+  while ((newline = strchr(token, '\n')) != NULL) {
+    token = newline + 1;
+    current_tracking->lineNumber++;
+    current_tracking->currentChar = 1;
+  }
+  current_tracking->currentChar += strlen(token);
 }
 
 
 /* GetNextChar: reads a character from input */
 int GetNextChar(char *b, int maxBuffer) {
-  char *p;
-  
-  if (  current_tracking->eof  )
+  int res = fgetc(current_tracking->in_file);
+  if ( res == EOF ) 
     return 0;
-  
-  while (  current_tracking->currentChar >= current_tracking->lineLength  ) {
-    current_tracking->currentChar = 0;
-    current_tracking->currentTokenStart = 1;
-    current_tracking->eof = false;
-    
-    p = fgets(current_tracking->buffer, MAX_LINE_LENGTH, current_tracking->in_file);
-    if (  p == NULL  ) {
-      if (  ferror(current_tracking->in_file)  )
-        return 0;
-      current_tracking->eof = true;
-      return 0;
-    }
-    
-    current_tracking->lineLength = strlen(current_tracking->buffer);
-    
-    /* only increment line number if the buffer was big enough to read the whole line! */
-    char last_char = current_tracking->buffer[current_tracking->lineLength - 1];
-    if (('\n' == last_char) || ('\r' == last_char))  // '\r' ---> CR, '\n'  ---> LF
-      current_tracking->lineNumber++;
-  }
-  
-  b[0] = current_tracking->buffer[current_tracking->currentChar];
-  if (b[0] == ' ' || b[0] == '\t')
-    current_tracking->currentTokenStart++;
-  current_tracking->currentChar++;
-
-  return b[0]==0?0:1;
+  *b = (char)res;
+  return 1;
 }
-
 
 
 
@@ -2045,55 +2052,91 @@ void include_file(const char *filename) {
 
 
 
-
-
-/* return all the text in the current token back to the input stream, except the first n chars. */
-void unput_text(unsigned int n) {
-  /* it seems that flex has a bug in that it will not correctly count the line numbers
-   * if we return newlines back to the input stream. These newlines will be re-counted
-   * a second time when they are processed again by flex.
-   * We therefore determine how many newlines are in the text we are returning,
-   * and decrement the line counter acordingly...
+/* return the specified character to the input stream */
+/* WARNING: this function destroys the contents of yytext */
+void unput_char(const char c) {
+  /* NOTE: The following uncomented code is not necessary as we currently use a different algorithm:
+   *          - make a backup/snapshot of the current tracking data (in previous_tracking variable)
+   *             (done in YY_USER_ACTION)
+   *          - restore the previous tracking state when we unput any text...
+   *             (in unput_text() and unput_and_mark() )
    */
-  /*
-  unsigned int i;
-  
-  for (i = n; i < strlen(yytext); i++)
-    if (yytext[i] == '\n')
-      current_tracking->lineNumber--;
-  */
-  /* now return all the text back to the input stream... */
-  yyless(n);
+//   /* We will later be processing this same character again when it is read from the input strem,
+//    * and therefore we will be incrementing the line number and character column acordingly.
+//    * We must therefore try to 'undo' the changes to the line number and character column
+//    * so this character is not counted twice!
+//    */
+//   if        (c == '\n') {
+//     current_tracking->lineNumber--;
+//     /* We should now set the current_tracking->currentChar to the length of the previous line
+//      * But we currently have no way of knowing it, so we simply set it to 0.
+//      * I (msousa) don't think this is currently an issue because I don't believe the code
+//      * ever calls unput_char() with a '\n', so we leave it for now
+//      */
+//     current_tracking->currentChar = 0;
+//   } else if (current_tracking->currentChar > 0) {
+//     current_tracking->currentChar--;
+//   }
+
+  unput(c); // unput() destroys the contents of yytext !!
 }
 
 
-/* return all the text in the current token back to the input stream, 
- * but first return to the stream an additional character to mark the end of the token. 
- */
-void unput_and_mark(const char c) {
-  char *yycopy = strdup( yytext ); /* unput() destroys yytext, so we copy it first */
-  unput(c);
-  for (int i = yyleng-1; i >= 0; i--)
-    unput(yycopy[i]);
+/* return all the text in the current token back to the input stream, except the first n chars. */
+void unput_text(int n) {
+  if (n < 0) ERROR;
+  signed int i; // must be signed! The iterartion may end with -1 when this function is called with n=0 !!
 
+  char *yycopy = strdup( yytext ); /* unput_char() destroys yytext, so we copy it first */
+  for (int i = yyleng-1; i >= n; i--)
+    unput_char(yycopy[i]);
+
+  *current_tracking = previous_tracking;
+  yycopy[n] = '\0';
+  UpdateTracking(yycopy);
+  
   free(yycopy);
 }
 
 
 
+/* return all the text in the current token back to the input stream, 
+ * but first return to the stream an additional character to mark the end of the token. 
+ */
+void unput_and_mark(const char mark_char) {
+  char *yycopy = strdup( yytext ); /* unput_char() destroys yytext, so we copy it first */
+  unput_char(mark_char);
+  for (int i = yyleng-1; i >= 0; i--)
+    unput_char(yycopy[i]);
+
+  free(yycopy);
+  *current_tracking = previous_tracking;
+}
+
+
+
 /* The body_state tries to find a ';' before a END_PROGRAM, END_FUNCTION or END_FUNCTION_BLOCK or END_ACTION
- * To do so, it must ignore comments and pragmas. This means that we cannot do this in a signle lex rule.
- * However, we must store any text we consume in every rule, so we can push it back into the buffer
+ * and ignores ';' inside comments and pragmas. This means that we cannot do this in a signle lex rule.
+ * Body_state therefore stores ALL text we consume in every rule, so we can push it back into the buffer
  * once we have decided if we are parsing ST or IL code. The following functions manage that buffer used by
  * the body_state.
  */
 /* The buffer used by the body_state state */
-char *bodystate_buffer = NULL;
+char *bodystate_buffer        = NULL;
+bool  bodystate_is_whitespace = 1; // TRUE (1) if buffer is empty, or only contains whitespace.
+tracking_t bodystate_init_tracking;
 
 /* append text to bodystate_buffer */
-void  append_bodystate_buffer(const char *text) {
-  //printf("<<<append_bodystate_buffer>>> %d <%s><%s>\n", bodystate_buffer, text, (NULL != bodystate_buffer)?bodystate_buffer:"NULL");
+void  append_bodystate_buffer(const char *text, int is_whitespace) {
+  // printf("<<<append_bodystate_buffer>>> %d <%s><%s>\n", bodystate_buffer, text, (NULL != bodystate_buffer)?bodystate_buffer:"NULL");
   long int old_len = 0;
+  // make backup of tracking if we are starting off a new body_state_buffer
+  if (NULL == bodystate_buffer) bodystate_init_tracking = *current_tracking;
+  // set bodystate_is_whitespace flag if we are starting a new buffer
+  if (NULL == bodystate_buffer) bodystate_is_whitespace = 1;
+  // set bodystate_is_whitespace flag to FALSE if we are adding non white space to buffer
+  if (!is_whitespace)           bodystate_is_whitespace = 0;
+
   if (NULL != bodystate_buffer) old_len = strlen(bodystate_buffer);
   bodystate_buffer = (char *)realloc(bodystate_buffer, old_len + strlen(text) + 1);
   if (NULL == bodystate_buffer) ERROR;
@@ -2104,19 +2147,23 @@ void  append_bodystate_buffer(const char *text) {
 /* Return all data in bodystate_buffer back to flex, and empty bodystate_buffer. */
 void   unput_bodystate_buffer(void) {
   if (NULL == bodystate_buffer) ERROR;
-  //printf("<<<unput_bodystate_buffer>>>\n%s\n", bodystate_buffer);
+  // printf("<<<unput_bodystate_buffer>>>\n%s\n", bodystate_buffer);
   
   for (long int i = strlen(bodystate_buffer)-1; i >= 0; i--)
-    unput(bodystate_buffer[i]);
+    unput_char(bodystate_buffer[i]);
   
   free(bodystate_buffer);
-  bodystate_buffer = NULL;
+  bodystate_buffer        = NULL;
+  bodystate_is_whitespace = 1;  
+  *current_tracking = bodystate_init_tracking;
 }
 
 
-/* Return true if bodystate_buffer is empty */
+/* Return true if bodystate_buffer is empty or ony contains whitespace!! */
 int  isempty_bodystate_buffer(void) {
-  return (NULL == bodystate_buffer);
+  if (NULL == bodystate_buffer) return 1;
+  if (bodystate_is_whitespace)  return 1;
+  return 0;
 }
 
 
