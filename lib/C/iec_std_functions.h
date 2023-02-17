@@ -1376,6 +1376,8 @@ static inline STRING __delete(STRING IN, __strlen_t L, __strlen_t P){
     STRING res;
     __strlen_t to_copy;
     res = __INIT_STRING;
+    if (P < 1)
+        P = 1;
 
     to_copy = P > IN.len ? IN.len : P-1;
     memcpy(&res.body, &IN.body , to_copy);
@@ -1407,6 +1409,8 @@ static inline STRING __replace(STRING IN1, STRING IN2, __strlen_t L, __strlen_t 
     STRING res;
     __strlen_t to_copy;
     res = __INIT_STRING;
+    if (P < 1)
+        P = 1;
 
     to_copy = P > IN1.len ? IN1.len : P-1;
     memcpy(&res.body, &IN1.body , to_copy);
