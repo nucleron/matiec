@@ -890,7 +890,11 @@ __ANY_DATE(__iec_)
 __iec_(TIME)
 #undef __iec_
 
-#define __STR_CMP(str1, str2) memcmp((char*)&str1.body,(char*)&str2.body, str1.len < str2.len ? str1.len : str2.len)
+static inline int __str_cmp(uint8_t* str1, __strlen_t len1, uint8_t* str2, __strlen_t len2) {
+    int cmp = memcmp(str1, str2, len1 < len2 ? len1 : len2);
+    return cmp ? cmp : (len1 > len2 ? 1 : (len1 < len2 ? - 1 : 0));
+}
+#define __STR_CMP(str1, str2) __str_cmp(str1.body, str1.len, str2.body, str2.len)
 
 /* Max for string data types */	
 __extrem_(MAX_STRING, STRING, __STR_CMP(op1,tmp) < 0) /* The explicitly typed standard functions */
@@ -1372,6 +1376,8 @@ static inline STRING __delete(STRING IN, __strlen_t L, __strlen_t P){
     STRING res;
     __strlen_t to_copy;
     res = __INIT_STRING;
+    if (P < 1)
+        P = 1;
 
     to_copy = P > IN.len ? IN.len : P-1;
     memcpy(&res.body, &IN.body , to_copy);
@@ -1403,6 +1409,8 @@ static inline STRING __replace(STRING IN1, STRING IN2, __strlen_t L, __strlen_t 
     STRING res;
     __strlen_t to_copy;
     res = __INIT_STRING;
+    if (P < 1)
+        P = 1;
 
     to_copy = P > IN1.len ? IN1.len : P-1;
     memcpy(&res.body, &IN1.body , to_copy);
